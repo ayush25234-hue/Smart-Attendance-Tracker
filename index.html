@@ -1,0 +1,2983 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smart Attendance Tracker</title>
+  <style>
+    :root {
+      --bg: #f5f7fb;
+      --surface: #ffffff;
+      --surface-soft: #f8fafc;
+      --ink: #111827;
+      --muted: #64748b;
+      --line: #dbe3ef;
+      --primary: #2563eb;
+      --primary-dark: #1d4ed8;
+      --green: #16a34a;
+      --green-soft: #dcfce7;
+      --red: #dc2626;
+      --red-soft: #fee2e2;
+      --yellow: #ca8a04;
+      --yellow-soft: #fef3c7;
+      --blue-soft: #dbeafe;
+      --shadow: 0 16px 38px rgba(15, 23, 42, 0.08);
+      --radius: 8px;
+      --sidebar-width: 270px;
+    }
+
+    * {
+      box-sizing: border-box;
+      letter-spacing: 0;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(180deg, #eef5ff 0, #f6f8fc 330px),
+        var(--bg);
+      color: var(--ink);
+      font-family: "Segoe UI", Arial, sans-serif;
+      font-size: 16px;
+    }
+
+    button,
+    input,
+    select,
+    textarea {
+      font: inherit;
+    }
+
+    button {
+      border: 0;
+      cursor: pointer;
+    }
+
+    button:disabled,
+    input:disabled,
+    select:disabled {
+      cursor: not-allowed;
+      opacity: 0.65;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    .auth-screen {
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 28px;
+    }
+
+    .auth-layout {
+      width: min(980px, 100%);
+      display: grid;
+      grid-template-columns: minmax(0, 0.95fr) minmax(320px, 1.05fr);
+      gap: 24px;
+      align-items: stretch;
+    }
+
+    .auth-intro,
+    .auth-card {
+      border: 1px solid rgba(203, 213, 225, 0.9);
+      border-radius: var(--radius);
+      background: rgba(255, 255, 255, 0.92);
+      box-shadow: var(--shadow);
+    }
+
+    .auth-intro {
+      padding: 30px;
+      display: grid;
+      align-content: space-between;
+      gap: 24px;
+    }
+
+    .auth-brand {
+      width: 58px;
+      height: 58px;
+      display: grid;
+      place-items: center;
+      border-radius: var(--radius);
+      background: var(--primary);
+      color: #fff;
+      font-size: 27px;
+      font-weight: 900;
+    }
+
+    h1,
+    h2,
+    h3,
+    p {
+      margin-top: 0;
+    }
+
+    .auth-intro h1 {
+      margin-bottom: 10px;
+      color: #0f172a;
+      font-size: clamp(30px, 6vw, 48px);
+      line-height: 1.05;
+    }
+
+    .auth-intro p,
+    .subtext {
+      color: var(--muted);
+      line-height: 1.55;
+    }
+
+    .demo-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .demo-item {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 8px;
+      align-items: center;
+      padding: 11px 12px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: #fff;
+      font-size: 14px;
+    }
+
+    .demo-item strong {
+      color: #0f172a;
+    }
+
+    .demo-item code {
+      color: #1d4ed8;
+      font-weight: 800;
+    }
+
+    .auth-card {
+      padding: 30px;
+    }
+
+    .auth-card h2 {
+      margin-bottom: 6px;
+      font-size: 26px;
+    }
+
+    .field {
+      display: grid;
+      gap: 7px;
+      margin-bottom: 14px;
+    }
+
+    label {
+      color: #334155;
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    input,
+    select,
+    textarea {
+      width: 100%;
+      min-height: 44px;
+      border: 1px solid #cbd5e1;
+      border-radius: var(--radius);
+      background: #fff;
+      color: var(--ink);
+      padding: 10px 12px;
+      outline: none;
+      transition: border-color 0.16s ease, box-shadow 0.16s ease;
+    }
+
+    textarea {
+      min-height: 148px;
+      resize: vertical;
+      line-height: 1.5;
+      background: var(--surface-soft);
+    }
+
+    input:focus,
+    select:focus,
+    textarea:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.13);
+    }
+
+    .error-text {
+      min-height: 22px;
+      margin: 6px 0 14px;
+      color: var(--red);
+      font-weight: 800;
+    }
+
+    .auth-actions {
+      display: grid;
+      gap: 10px;
+    }
+
+    .primary-btn,
+    .secondary-btn,
+    .danger-btn,
+    .nav-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 42px;
+      border-radius: var(--radius);
+      padding: 10px 15px;
+      font-weight: 800;
+      transition: background 0.16s ease, color 0.16s ease, transform 0.16s ease, box-shadow 0.16s ease;
+      white-space: nowrap;
+    }
+
+    .primary-btn {
+      background: var(--primary);
+      color: #fff;
+      box-shadow: 0 10px 20px rgba(37, 99, 235, 0.18);
+    }
+
+    .primary-btn:hover {
+      background: var(--primary-dark);
+      transform: translateY(-1px);
+    }
+
+    .secondary-btn {
+      border: 1px solid #bfcee3;
+      background: #f8fafc;
+      color: #1e3a5f;
+    }
+
+    .secondary-btn:hover {
+      background: #edf4ff;
+      transform: translateY(-1px);
+    }
+
+    .danger-btn {
+      border: 1px solid #fecaca;
+      background: #fff5f5;
+      color: #991b1b;
+    }
+
+    .danger-btn:hover {
+      background: #fee2e2;
+      transform: translateY(-1px);
+    }
+
+    .full-btn {
+      width: 100%;
+    }
+
+    .app-shell {
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+    }
+
+    .sidebar {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      display: grid;
+      grid-template-rows: auto auto 1fr auto;
+      gap: 18px;
+      padding: 22px;
+      border-right: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.94);
+      box-shadow: 10px 0 30px rgba(15, 23, 42, 0.04);
+    }
+
+    .sidebar-brand {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .brand-mark {
+      width: 42px;
+      height: 42px;
+      display: grid;
+      place-items: center;
+      flex: 0 0 auto;
+      border-radius: var(--radius);
+      background: var(--primary);
+      color: #fff;
+      font-weight: 900;
+    }
+
+    .sidebar-brand strong {
+      display: block;
+      line-height: 1.15;
+    }
+
+    .sidebar-brand span,
+    .teacher-mini span {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .teacher-mini {
+      padding: 13px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface-soft);
+    }
+
+    .teacher-mini strong {
+      display: block;
+      margin-bottom: 4px;
+      color: #0f172a;
+    }
+
+    .nav-list {
+      display: grid;
+      gap: 8px;
+      align-content: start;
+    }
+
+    .nav-btn {
+      justify-content: flex-start;
+      width: 100%;
+      border: 1px solid transparent;
+      background: transparent;
+      color: #334155;
+      text-align: left;
+    }
+
+    .nav-btn:hover,
+    .nav-btn.active {
+      border-color: #bfcee3;
+      background: #edf4ff;
+      color: #1d4ed8;
+    }
+
+    .main {
+      min-width: 0;
+      padding: 26px;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 18px;
+      margin: 0 auto 20px;
+      width: min(1180px, 100%);
+    }
+
+    .topbar h1 {
+      margin-bottom: 6px;
+      font-size: clamp(27px, 4vw, 40px);
+      line-height: 1.1;
+    }
+
+    .topbar p {
+      margin-bottom: 0;
+      color: var(--muted);
+    }
+
+    .date-pill {
+      min-height: 44px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 10px 14px;
+      border: 1px solid #cbd8ea;
+      border-radius: var(--radius);
+      background: rgba(255, 255, 255, 0.86);
+      color: #1e3a5f;
+      box-shadow: 0 8px 20px rgba(37, 99, 235, 0.08);
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .view {
+      width: min(1180px, 100%);
+      margin: 0 auto;
+    }
+
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+
+    .stat-card,
+    .panel {
+      border: 1px solid rgba(203, 213, 225, 0.9);
+      border-radius: var(--radius);
+      background: var(--surface);
+      box-shadow: var(--shadow);
+    }
+
+    .stat-card {
+      min-height: 132px;
+      padding: 18px;
+    }
+
+    .stat-label {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 900;
+      text-transform: uppercase;
+    }
+
+    .stat-value {
+      margin: 13px 0 7px;
+      color: #0f172a;
+      font-size: 34px;
+      line-height: 1;
+      font-weight: 900;
+    }
+
+    .stat-card.present .stat-value {
+      color: var(--green);
+    }
+
+    .stat-card.absent .stat-value {
+      color: var(--red);
+    }
+
+    .stat-card.percent .stat-value {
+      color: var(--primary);
+    }
+
+    .stat-note {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.4;
+    }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+
+    .summary-item {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: #fff;
+      padding: 14px;
+    }
+
+    .summary-item span {
+      display: block;
+      margin-bottom: 6px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 900;
+      text-transform: uppercase;
+    }
+
+    .summary-item strong {
+      color: #0f172a;
+      font-size: 18px;
+    }
+
+    .summary-item select {
+      min-height: 40px;
+      padding: 8px 10px;
+      font-weight: 800;
+    }
+
+    .panel {
+      overflow: hidden;
+      margin-bottom: 18px;
+    }
+
+    .panel-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 14px;
+      padding: 18px 20px;
+      border-bottom: 1px solid var(--line);
+      background: linear-gradient(180deg, #ffffff 0, #fbfdff 100%);
+    }
+
+    .panel-title {
+      margin: 0;
+      font-size: 21px;
+      line-height: 1.25;
+    }
+
+    .panel-kicker {
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .panel-body {
+      padding: 20px;
+    }
+
+    .controls-row {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+      margin-bottom: 16px;
+      align-items: end;
+    }
+
+    .controls-row.two {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .controls-row.holiday {
+      grid-template-columns: 200px minmax(0, 1fr) auto;
+    }
+
+    .controls-row.four {
+      grid-template-columns: minmax(150px, 0.8fr) minmax(120px, 0.6fr) minmax(220px, 1.2fr) auto;
+    }
+
+    .inline-check {
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      min-height: 42px;
+      color: #334155;
+      font-weight: 800;
+    }
+
+    .inline-check input {
+      width: 18px;
+      height: 18px;
+      accent-color: var(--primary);
+    }
+
+    .notice {
+      display: none;
+      margin: 0 0 16px;
+      padding: 12px 14px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface-soft);
+      color: #334155;
+      font-weight: 800;
+      line-height: 1.45;
+    }
+
+    .notice.show {
+      display: block;
+    }
+
+    .notice.warning {
+      border-color: #fde68a;
+      background: #fffbeb;
+      color: #92400e;
+    }
+
+    .notice.danger {
+      border-color: #fecaca;
+      background: #fff5f5;
+      color: #991b1b;
+    }
+
+    .notice.success {
+      border-color: #bbf7d0;
+      background: #f0fdf4;
+      color: #166534;
+    }
+
+    .section-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 16px;
+    }
+
+    .section-actions .save-note {
+      margin: 0 auto 0 0;
+      align-self: center;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    .table-wrap {
+      width: 100%;
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: #fff;
+    }
+
+    table {
+      width: 100%;
+      min-width: 660px;
+      border-collapse: collapse;
+    }
+
+    th,
+    td {
+      padding: 13px 14px;
+      border-bottom: 1px solid #e2e8f0;
+      text-align: left;
+      vertical-align: middle;
+    }
+
+    th {
+      background: #f8fafc;
+      color: #475569;
+      font-size: 12px;
+      font-weight: 900;
+      text-transform: uppercase;
+    }
+
+    tr:last-child td {
+      border-bottom: 0;
+    }
+
+    tbody tr:hover {
+      background: #f9fbff;
+    }
+
+    .roll-cell {
+      width: 96px;
+      color: #0f172a;
+      font-weight: 900;
+    }
+
+    .student-name {
+      color: #0f172a;
+      font-weight: 800;
+    }
+
+    .muted {
+      color: var(--muted);
+    }
+
+    .absent-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      min-width: 108px;
+      color: #7f1d1d;
+      font-weight: 900;
+    }
+
+    .absent-toggle input {
+      width: 18px;
+      height: 18px;
+      accent-color: var(--red);
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 82px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
+    .badge.present {
+      background: var(--green-soft);
+      color: #166534;
+    }
+
+    .badge.absent {
+      background: var(--red-soft);
+      color: #991b1b;
+    }
+
+    .badge.holiday {
+      background: var(--yellow-soft);
+      color: #854d0e;
+    }
+
+    .badge.neutral {
+      background: var(--blue-soft);
+      color: #1d4ed8;
+    }
+
+    .report-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .report-block {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      overflow: hidden;
+      background: #fff;
+    }
+
+    .report-block-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 13px 14px;
+      border-bottom: 1px solid var(--line);
+      background: #f8fafc;
+      font-weight: 900;
+    }
+
+    .mini-stats {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .mini-stat {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 13px;
+      background: #fff;
+    }
+
+    .mini-stat span {
+      display: block;
+      margin-bottom: 7px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 900;
+      text-transform: uppercase;
+    }
+
+    .mini-stat strong {
+      color: #0f172a;
+      font-size: 26px;
+      line-height: 1;
+    }
+
+    .percentage-section {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: #fff;
+      margin-bottom: 16px;
+      overflow: hidden;
+    }
+
+    .percentage-body {
+      padding: 14px;
+    }
+
+    .percentage-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .percentage-card {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 13px;
+      background: var(--surface-soft);
+    }
+
+    .percentage-card span {
+      display: block;
+      margin-bottom: 8px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 900;
+      text-transform: uppercase;
+    }
+
+    .percentage-card strong {
+      display: block;
+      color: var(--primary);
+      font-size: 28px;
+      line-height: 1;
+    }
+
+    .percentage-card p {
+      margin: 8px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.35;
+    }
+
+    .month-percentage-row {
+      display: grid;
+      grid-template-columns: 220px 260px minmax(0, 1fr);
+      gap: 14px;
+      align-items: end;
+      margin-top: 14px;
+    }
+
+    .date-period-row,
+    .date-meta-row {
+      display: grid;
+      gap: 14px;
+      align-items: end;
+      margin-bottom: 16px;
+    }
+
+    .date-period-row {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .date-meta-row {
+      grid-template-columns: minmax(0, 1fr) minmax(180px, 0.7fr);
+    }
+
+    .student-report-heading {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+
+    .student-report-heading h3 {
+      margin: 0;
+      font-size: 22px;
+    }
+
+    .empty-state {
+      border: 1px dashed #b8c7dc;
+      border-radius: var(--radius);
+      padding: 24px;
+      background: #f8fafc;
+      color: #64748b;
+      text-align: center;
+      font-weight: 800;
+      line-height: 1.45;
+    }
+
+    .message-status {
+      min-height: 22px;
+      margin: 10px 0 0;
+      color: var(--green);
+      font-size: 13px;
+      font-weight: 900;
+    }
+
+    .toast {
+      position: fixed;
+      right: 20px;
+      bottom: 20px;
+      z-index: 30;
+      max-width: min(390px, calc(100% - 40px));
+      padding: 13px 16px;
+      border-radius: var(--radius);
+      background: #10213d;
+      color: #fff;
+      box-shadow: 0 16px 36px rgba(15, 23, 42, 0.22);
+      font-weight: 800;
+      opacity: 0;
+      transform: translateY(14px);
+      pointer-events: none;
+      transition: opacity 0.18s ease, transform 0.18s ease;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    @media (max-width: 1020px) {
+      .app-shell {
+        grid-template-columns: 1fr;
+      }
+
+      .sidebar {
+        position: static;
+        height: auto;
+        grid-template-columns: 1fr;
+        grid-template-rows: auto;
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .nav-list {
+        grid-template-columns: repeat(6, minmax(132px, 1fr));
+        overflow-x: auto;
+        padding-bottom: 4px;
+      }
+
+      .sidebar .danger-btn {
+        justify-self: start;
+      }
+    }
+
+    @media (max-width: 840px) {
+      .auth-layout {
+        grid-template-columns: 1fr;
+      }
+
+      .topbar {
+        flex-direction: column;
+      }
+
+      .stat-grid,
+      .summary-grid,
+      .mini-stats,
+      .percentage-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .controls-row,
+      .controls-row.two,
+      .controls-row.holiday,
+      .controls-row.four,
+      .month-percentage-row,
+      .report-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .controls-row.holiday .primary-btn {
+        width: 100%;
+      }
+    }
+
+    @media (max-width: 560px) {
+      .auth-screen {
+        padding: 12px;
+      }
+
+      .auth-intro,
+      .auth-card,
+      .main,
+      .sidebar {
+        padding: 16px;
+      }
+
+      .stat-grid,
+      .summary-grid,
+      .mini-stats,
+      .percentage-grid,
+      .date-period-row,
+      .date-meta-row {
+        grid-template-columns: 1fr;
+      }
+
+      .panel-header,
+      .panel-body {
+        padding-left: 14px;
+        padding-right: 14px;
+      }
+
+      .section-actions {
+        justify-content: stretch;
+      }
+
+      .section-actions button,
+      .section-actions .save-note {
+        width: 100%;
+        text-align: center;
+      }
+    }
+  </style>
+</head>
+<body>
+  <section class="auth-screen" id="loginView">
+    <div class="auth-layout">
+      <div class="auth-intro">
+        <div>
+          <div class="auth-brand">SA</div>
+          <h1>Smart Attendance Tracker</h1>
+          <p>Subject teachers mark only absent students. Everyone else is counted present automatically for the selected class, subject, and date.</p>
+        </div>
+        <div>
+          <h3>Demo Credentials</h3>
+          <div class="demo-list" id="demoCredentials"></div>
+        </div>
+      </div>
+
+      <div class="auth-card">
+        <form id="loginForm">
+          <h2>Teacher Login</h2>
+          <p class="subtext">Use a sample account or create your own teacher account.</p>
+          <div class="field">
+            <label for="username">Username</label>
+            <input id="username" type="text" autocomplete="username" required>
+          </div>
+          <div class="field">
+            <label for="password">Password</label>
+            <input id="password" type="password" autocomplete="current-password" required>
+          </div>
+          <p class="error-text" id="loginError"></p>
+          <div class="auth-actions">
+            <button class="primary-btn full-btn" type="submit">Login</button>
+            <button class="secondary-btn full-btn" id="showRegisterBtn" type="button">Create Teacher Account</button>
+          </div>
+        </form>
+
+        <form class="hidden" id="registerForm">
+          <h2>Create Teacher Account</h2>
+          <p class="subtext">Choose your class, subject, username, and password. The account is saved on this browser.</p>
+          <div class="field">
+            <label for="registerTeacherName">Teacher Name</label>
+            <input id="registerTeacherName" type="text" autocomplete="name" required>
+          </div>
+          <div class="field">
+            <label for="registerSubject">Subject</label>
+            <input id="registerSubject" type="text" placeholder="Mathematics" required>
+          </div>
+          <div class="field">
+            <label for="registerClass">Assigned Class</label>
+            <input id="registerClass" type="text" list="classSuggestions" placeholder="10-A" required>
+            <datalist id="classSuggestions"></datalist>
+          </div>
+          <div class="field">
+            <label for="registerUsername">Username</label>
+            <input id="registerUsername" type="text" autocomplete="username" required>
+          </div>
+          <div class="field">
+            <label for="registerPassword">Password</label>
+            <input id="registerPassword" type="password" autocomplete="new-password" minlength="4" required>
+          </div>
+          <p class="error-text" id="registerError"></p>
+          <div class="auth-actions">
+            <button class="primary-btn full-btn" type="submit">Create Account</button>
+            <button class="secondary-btn full-btn" id="showLoginBtn" type="button">Back to Login</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </section>
+
+  <div class="app-shell hidden" id="appShell">
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <div class="brand-mark">SA</div>
+        <div>
+          <strong>Smart Attendance</strong>
+          <span>School dashboard</span>
+        </div>
+      </div>
+
+      <div class="teacher-mini">
+        <strong id="sidebarTeacher">Teacher</strong>
+        <span id="sidebarScope">Subject - Class</span>
+      </div>
+
+      <nav class="nav-list" aria-label="Dashboard navigation">
+        <button class="nav-btn active" data-view="dashboardView" type="button">Dashboard</button>
+        <button class="nav-btn" data-view="markView" type="button">Mark Attendance</button>
+        <button class="nav-btn" data-view="holidayView" type="button">Holidays</button>
+        <button class="nav-btn" data-view="classStudentView" type="button">Classes & Students</button>
+        <button class="nav-btn" data-view="dateReportView" type="button">Date Report</button>
+        <button class="nav-btn" data-view="studentReportView" type="button">Student Report</button>
+      </nav>
+
+      <button class="danger-btn" id="logoutBtn" type="button">Logout</button>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div>
+          <h1 id="pageTitle">Dashboard</h1>
+          <p id="pageSubtitle">Attendance overview for the logged-in teacher.</p>
+        </div>
+        <div class="date-pill" id="todayDate">Today</div>
+      </header>
+
+      <section class="view" id="dashboardView">
+        <div class="summary-grid">
+          <div class="summary-item">
+            <span>Teacher</span>
+            <strong id="dashTeacherName">-</strong>
+          </div>
+          <div class="summary-item">
+            <span>Subject</span>
+            <strong id="dashSubject">-</strong>
+          </div>
+          <div class="summary-item">
+            <span>Assigned Class</span>
+            <select id="dashClassSelect"></select>
+          </div>
+        </div>
+
+        <div class="stat-grid">
+          <article class="stat-card">
+            <p class="stat-label">Total Students</p>
+            <div class="stat-value" id="totalStudents">0</div>
+            <p class="stat-note">Students in assigned class</p>
+          </article>
+          <article class="stat-card present">
+            <p class="stat-label">Present Count</p>
+            <div class="stat-value" id="presentToday">0</div>
+            <p class="stat-note" id="presentNote">No attendance saved today</p>
+          </article>
+          <article class="stat-card absent">
+            <p class="stat-label">Absent Count</p>
+            <div class="stat-value" id="absentToday">0</div>
+            <p class="stat-note" id="absentNote">No attendance saved today</p>
+          </article>
+          <article class="stat-card percent">
+            <p class="stat-label">Class Attendance</p>
+            <div class="stat-value" id="attendancePercent">0%</div>
+            <p class="stat-note" id="percentNote">Today's percentage</p>
+          </article>
+        </div>
+
+        <div class="notice" id="dashboardNotice"></div>
+      </section>
+
+      <section class="view hidden" id="markView">
+        <section class="panel">
+          <div class="panel-header">
+            <div>
+              <h2 class="panel-title">Mark Attendance</h2>
+              <p class="panel-kicker" id="markScope">Assigned class and subject</p>
+            </div>
+            <span class="badge neutral" id="classSizeBadge">0 students</span>
+          </div>
+          <div class="panel-body">
+            <div class="controls-row">
+              <div class="field">
+                <label for="markDate">Date</label>
+                <input id="markDate" type="date">
+              </div>
+              <div class="field">
+                <label for="markSort">Sort Students</label>
+                <select id="markSort">
+                  <option value="rollAsc">Roll No ascending</option>
+                  <option value="pctDesc">Attendance percentage high to low</option>
+                </select>
+              </div>
+              <div class="field">
+                <label>Class</label>
+                <input id="markClassDisplay" type="text" disabled>
+              </div>
+            </div>
+
+            <p class="notice" id="markNotice"></p>
+            <div id="studentList"></div>
+
+            <div class="section-actions">
+              <p class="save-note" id="saveNote"></p>
+              <button class="primary-btn" id="saveAttendance" type="button">Save Attendance</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-header">
+            <div>
+              <h2 class="panel-title">WhatsApp Message</h2>
+              <p class="panel-kicker">Generated after attendance is saved</p>
+            </div>
+          </div>
+          <div class="panel-body">
+            <textarea id="whatsappMessage" readonly placeholder="Save attendance to generate the WhatsApp-ready message."></textarea>
+            <div class="section-actions">
+              <button class="secondary-btn" id="copyMessage" type="button" disabled>Copy Message</button>
+            </div>
+            <p class="message-status" id="copyStatus"></p>
+          </div>
+        </section>
+      </section>
+
+      <section class="view hidden" id="holidayView">
+        <section class="panel">
+          <div class="panel-header">
+            <div>
+              <h2 class="panel-title">Holiday Manager</h2>
+              <p class="panel-kicker">Holiday dates are ignored in attendance reports</p>
+            </div>
+          </div>
+          <div class="panel-body">
+            <div class="controls-row holiday">
+              <div class="field">
+                <label for="holidayDate">Holiday Date</label>
+                <input id="holidayDate" type="date">
+              </div>
+              <div class="field">
+                <label for="holidayReason">Reason</label>
+                <input id="holidayReason" type="text" maxlength="80" placeholder="School Holiday">
+              </div>
+              <button class="primary-btn" id="addHoliday" type="button">Add Holiday</button>
+            </div>
+            <p class="notice" id="holidayNotice"></p>
+            <div id="holidayList"></div>
+          </div>
+        </section>
+      </section>
+
+      <section class="view hidden" id="classStudentView">
+        <section class="panel">
+          <div class="panel-header">
+            <div>
+              <h2 class="panel-title">Classes & Students</h2>
+              <p class="panel-kicker">Create classes and manage student rosters</p>
+            </div>
+            <span class="badge neutral" id="classCountBadge">0 classes</span>
+          </div>
+          <div class="panel-body">
+            <div class="controls-row">
+              <div class="field">
+                <label for="newClassName">New Class</label>
+                <input id="newClassName" type="text" placeholder="11-C">
+              </div>
+              <label class="inline-check">
+                <input id="assignNewClass" type="checkbox" checked>
+                Use for my dashboard
+              </label>
+              <button class="primary-btn" id="createClassBtn" type="button">Create Class</button>
+            </div>
+            <p class="notice" id="classStudentNotice"></p>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-header">
+            <div>
+              <h2 class="panel-title">Add Student Manually</h2>
+              <p class="panel-kicker">Add one student to a selected class</p>
+            </div>
+          </div>
+          <div class="panel-body">
+            <div class="controls-row four">
+              <div class="field">
+                <label for="manualStudentClass">Class</label>
+                <select id="manualStudentClass"></select>
+              </div>
+              <div class="field">
+                <label for="manualRollNo">Roll No</label>
+                <input id="manualRollNo" type="number" min="1" step="1">
+              </div>
+              <div class="field">
+                <label for="manualStudentName">Student Name</label>
+                <input id="manualStudentName" type="text">
+              </div>
+              <button class="primary-btn" id="addStudentBtn" type="button">Add Student</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-header">
+            <div>
+              <h2 class="panel-title">Import Students From Sheet</h2>
+              <p class="panel-kicker">CSV, TSV, or XLSX with rollNo and name columns</p>
+            </div>
+          </div>
+          <div class="panel-body">
+            <div class="controls-row">
+              <div class="field">
+                <label for="importStudentClass">Default Class</label>
+                <select id="importStudentClass"></select>
+              </div>
+              <div class="field">
+                <label for="importSheetFile">Excel / CSV Sheet</label>
+                <input id="importSheetFile" type="file" accept=".csv,.tsv,.txt,.xlsx">
+              </div>
+              <button class="primary-btn" id="importStudentsBtn" type="button">Import Students</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-header">
+            <div>
+              <h2 class="panel-title">Student Roster</h2>
+              <p class="panel-kicker">Current students by class</p>
+            </div>
+          </div>
+          <div class="panel-body">
+            <div class="controls-row two">
+              <div class="field">
+                <label for="studentRosterClass">Class</label>
+                <select id="studentRosterClass"></select>
+              </div>
+              <div></div>
+            </div>
+            <div id="studentRoster"></div>
+          </div>
+        </section>
+      </section>
+
+      <section class="view hidden" id="dateReportView">
+        <section class="panel">
+          <div class="panel-header">
+            <div>
+              <h2 class="panel-title">Date-wise Attendance Report</h2>
+              <p class="panel-kicker" id="dateReportScope">Assigned class and subject</p>
+            </div>
+          </div>
+          <div class="panel-body">
+            <div class="date-period-row">
+              <div class="field">
+                <label for="dateReportDate">Date</label>
+                <input id="dateReportDate" type="date">
+              </div>
+              <div class="field">
+                <label for="monthReportMonth">Particular Month</label>
+                <input id="monthReportMonth" type="month">
+              </div>
+              <div class="field">
+                <label for="monthQuickFilter">Last Month</label>
+                <select id="monthQuickFilter"></select>
+              </div>
+            </div>
+            <div class="date-meta-row">
+              <div class="field">
+                <label for="dateReportSort">Sort Report</label>
+                <select id="dateReportSort">
+                  <option value="rollAsc">Roll No ascending</option>
+                  <option value="pctDesc">Attendance percentage high to low</option>
+                </select>
+              </div>
+              <div class="field">
+                <label>Class</label>
+                <input id="dateClassDisplay" type="text" disabled>
+              </div>
+            </div>
+            <div id="monthPercentageResult"></div>
+            <div id="dateRecord">
+              <div class="empty-state">Select a date to view the report.</div>
+            </div>
+          </div>
+        </section>
+      </section>
+
+      <section class="view hidden" id="studentReportView">
+        <section class="panel">
+          <div class="panel-header">
+            <div>
+              <h2 class="panel-title">Student-wise Report</h2>
+              <p class="panel-kicker" id="studentReportScope">Working days exclude Sundays and holidays</p>
+            </div>
+          </div>
+          <div class="panel-body">
+            <div class="controls-row two">
+              <div class="field">
+                <label for="studentSort">Sort Students</label>
+                <select id="studentSort">
+                  <option value="rollAsc">Roll No ascending</option>
+                  <option value="pctDesc">Attendance percentage high to low</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="reportStudent">Student</label>
+                <select id="reportStudent">
+                  <option value="">Select student</option>
+                </select>
+              </div>
+            </div>
+            <div id="studentReport">
+              <div class="empty-state">Select a student to view the report.</div>
+            </div>
+          </div>
+        </section>
+      </section>
+    </main>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+  <script>
+    const LOGIN_KEY = "loggedInTeacher";
+    const API_BASE = window.location.protocol === "file:" ? "http://localhost:3000" : "";
+
+    const teachers = [
+      {
+        username: "mathsir",
+        password: "math123",
+        teacherName: "Ramesh Sharma",
+        subject: "Mathematics",
+        assignedClass: "10-A"
+      },
+      {
+        username: "sciencemam",
+        password: "science123",
+        teacherName: "Anita Verma",
+        subject: "Science",
+        assignedClass: "10-B"
+      },
+      {
+        username: "englishsir",
+        password: "english123",
+        teacherName: "Farhan Ali",
+        subject: "English",
+        assignedClass: "9-A"
+      },
+      {
+        username: "historymam",
+        password: "history123",
+        teacherName: "Meera Nair",
+        subject: "Social Science",
+        assignedClass: "8-B"
+      }
+    ];
+
+    const students = [
+      { id: 1, rollNo: 1, name: "Aanya Sharma", className: "10-A" },
+      { id: 2, rollNo: 2, name: "Rohan Mehta", className: "10-A" },
+      { id: 3, rollNo: 3, name: "Ishita Rao", className: "10-A" },
+      { id: 4, rollNo: 4, name: "Kabir Singh", className: "10-A" },
+      { id: 5, rollNo: 5, name: "Meera Joshi", className: "10-A" },
+      { id: 6, rollNo: 6, name: "Vivaan Patel", className: "10-A" },
+      { id: 7, rollNo: 7, name: "Sara Khan", className: "10-A" },
+      { id: 8, rollNo: 8, name: "Arjun Nair", className: "10-A" },
+      { id: 9, rollNo: 9, name: "Nandini Bhat", className: "10-A" },
+      { id: 10, rollNo: 10, name: "Om Prakash", className: "10-A" },
+      { id: 11, rollNo: 11, name: "Pooja Sethi", className: "10-A" },
+      { id: 12, rollNo: 12, name: "Yuvraj Desai", className: "10-A" },
+      { id: 101, rollNo: 1, name: "Aditya Verma", className: "10-B" },
+      { id: 102, rollNo: 2, name: "Diya Kapoor", className: "10-B" },
+      { id: 103, rollNo: 3, name: "Kunal Das", className: "10-B" },
+      { id: 104, rollNo: 4, name: "Nisha Iyer", className: "10-B" },
+      { id: 105, rollNo: 5, name: "Pranav Gupta", className: "10-B" },
+      { id: 106, rollNo: 6, name: "Tara Sen", className: "10-B" },
+      { id: 107, rollNo: 7, name: "Yash Malhotra", className: "10-B" },
+      { id: 108, rollNo: 8, name: "Zoya Ali", className: "10-B" },
+      { id: 109, rollNo: 9, name: "Amit Sinha", className: "10-B" },
+      { id: 110, rollNo: 10, name: "Leela Roy", className: "10-B" },
+      { id: 201, rollNo: 1, name: "Aarav Reddy", className: "9-A" },
+      { id: 202, rollNo: 2, name: "Anika Thomas", className: "9-A" },
+      { id: 203, rollNo: 3, name: "Devika Menon", className: "9-A" },
+      { id: 204, rollNo: 4, name: "Harsh Kapoor", className: "9-A" },
+      { id: 205, rollNo: 5, name: "Neel Shah", className: "9-A" },
+      { id: 206, rollNo: 6, name: "Priya Nair", className: "9-A" },
+      { id: 207, rollNo: 7, name: "Reyansh Bose", className: "9-A" },
+      { id: 208, rollNo: 8, name: "Saanvi Roy", className: "9-A" },
+      { id: 301, rollNo: 1, name: "Bhavya Jain", className: "8-B" },
+      { id: 302, rollNo: 2, name: "Chirag Rao", className: "8-B" },
+      { id: 303, rollNo: 3, name: "Esha Pillai", className: "8-B" },
+      { id: 304, rollNo: 4, name: "Gaurav Mishra", className: "8-B" },
+      { id: 305, rollNo: 5, name: "Ira Saxena", className: "8-B" },
+      { id: 306, rollNo: 6, name: "Manav Khanna", className: "8-B" },
+      { id: 307, rollNo: 7, name: "Ritika Ghosh", className: "8-B" },
+      { id: 308, rollNo: 8, name: "Samarth Kulkarni", className: "8-B" }
+    ];
+
+    const elements = {
+      loginView: document.getElementById("loginView"),
+      appShell: document.getElementById("appShell"),
+      loginForm: document.getElementById("loginForm"),
+      registerForm: document.getElementById("registerForm"),
+      username: document.getElementById("username"),
+      password: document.getElementById("password"),
+      loginError: document.getElementById("loginError"),
+      registerTeacherName: document.getElementById("registerTeacherName"),
+      registerSubject: document.getElementById("registerSubject"),
+      registerClass: document.getElementById("registerClass"),
+      registerUsername: document.getElementById("registerUsername"),
+      registerPassword: document.getElementById("registerPassword"),
+      registerError: document.getElementById("registerError"),
+      showRegisterBtn: document.getElementById("showRegisterBtn"),
+      showLoginBtn: document.getElementById("showLoginBtn"),
+      classSuggestions: document.getElementById("classSuggestions"),
+      demoCredentials: document.getElementById("demoCredentials"),
+      logoutBtn: document.getElementById("logoutBtn"),
+      navButtons: [...document.querySelectorAll(".nav-btn")],
+      views: [...document.querySelectorAll(".view")],
+      pageTitle: document.getElementById("pageTitle"),
+      pageSubtitle: document.getElementById("pageSubtitle"),
+      todayDate: document.getElementById("todayDate"),
+      sidebarTeacher: document.getElementById("sidebarTeacher"),
+      sidebarScope: document.getElementById("sidebarScope"),
+      dashTeacherName: document.getElementById("dashTeacherName"),
+      dashSubject: document.getElementById("dashSubject"),
+      dashClassSelect: document.getElementById("dashClassSelect"),
+      totalStudents: document.getElementById("totalStudents"),
+      presentToday: document.getElementById("presentToday"),
+      absentToday: document.getElementById("absentToday"),
+      attendancePercent: document.getElementById("attendancePercent"),
+      presentNote: document.getElementById("presentNote"),
+      absentNote: document.getElementById("absentNote"),
+      percentNote: document.getElementById("percentNote"),
+      dashboardNotice: document.getElementById("dashboardNotice"),
+      markScope: document.getElementById("markScope"),
+      markDate: document.getElementById("markDate"),
+      markSort: document.getElementById("markSort"),
+      markClassDisplay: document.getElementById("markClassDisplay"),
+      markNotice: document.getElementById("markNotice"),
+      classSizeBadge: document.getElementById("classSizeBadge"),
+      studentList: document.getElementById("studentList"),
+      saveAttendance: document.getElementById("saveAttendance"),
+      saveNote: document.getElementById("saveNote"),
+      whatsappMessage: document.getElementById("whatsappMessage"),
+      copyMessage: document.getElementById("copyMessage"),
+      copyStatus: document.getElementById("copyStatus"),
+      holidayDate: document.getElementById("holidayDate"),
+      holidayReason: document.getElementById("holidayReason"),
+      addHoliday: document.getElementById("addHoliday"),
+      holidayNotice: document.getElementById("holidayNotice"),
+      holidayList: document.getElementById("holidayList"),
+      classCountBadge: document.getElementById("classCountBadge"),
+      newClassName: document.getElementById("newClassName"),
+      assignNewClass: document.getElementById("assignNewClass"),
+      createClassBtn: document.getElementById("createClassBtn"),
+      classStudentNotice: document.getElementById("classStudentNotice"),
+      manualStudentClass: document.getElementById("manualStudentClass"),
+      manualRollNo: document.getElementById("manualRollNo"),
+      manualStudentName: document.getElementById("manualStudentName"),
+      addStudentBtn: document.getElementById("addStudentBtn"),
+      importStudentClass: document.getElementById("importStudentClass"),
+      importSheetFile: document.getElementById("importSheetFile"),
+      importStudentsBtn: document.getElementById("importStudentsBtn"),
+      studentRosterClass: document.getElementById("studentRosterClass"),
+      studentRoster: document.getElementById("studentRoster"),
+      dateReportScope: document.getElementById("dateReportScope"),
+      dateReportDate: document.getElementById("dateReportDate"),
+      dateReportSort: document.getElementById("dateReportSort"),
+      dateClassDisplay: document.getElementById("dateClassDisplay"),
+      monthReportMonth: document.getElementById("monthReportMonth"),
+      monthQuickFilter: document.getElementById("monthQuickFilter"),
+      monthPercentageResult: document.getElementById("monthPercentageResult"),
+      dateRecord: document.getElementById("dateRecord"),
+      studentReportScope: document.getElementById("studentReportScope"),
+      studentSort: document.getElementById("studentSort"),
+      reportStudent: document.getElementById("reportStudent"),
+      studentReport: document.getElementById("studentReport"),
+      toast: document.getElementById("toast")
+    };
+
+    let currentTeacher = null;
+    let activeDateReportFilter = "date";
+    let appData = {
+      teachers: [...teachers],
+      demoTeachers: [...teachers],
+      classes: [...new Set(students.map((student) => student.className))].sort(),
+      students: [...students],
+      attendanceRecords: {},
+      holidayRecords: {}
+    };
+
+    async function apiRequest(path, options = {}) {
+      let response;
+      try {
+        response = await fetch(`${API_BASE}${path}`, {
+          headers: {
+            "Content-Type": "application/json",
+            ...(options.headers || {})
+          },
+          ...options
+        });
+      } catch (error) {
+        throw new Error("Backend is not reachable. Start node server.js and open http://localhost:3000");
+      }
+
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        const error = new Error(payload.error || "Request failed.");
+        error.status = response.status;
+        error.payload = payload;
+        throw error;
+      }
+
+      return payload;
+    }
+
+    function applyBootstrapData(payload) {
+      appData = {
+        teachers: payload.teachers || [],
+        demoTeachers: payload.demoTeachers || [],
+        classes: payload.classes || [],
+        students: payload.students || [],
+        attendanceRecords: payload.attendanceRecords || {},
+        holidayRecords: payload.holidayRecords || {}
+      };
+    }
+
+    async function loadBootstrapData() {
+      const payload = await apiRequest("/api/bootstrap");
+      applyBootstrapData(payload);
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    function getTodayValue() {
+      const today = new Date();
+      const year = today.getFullYear();
+      const month = String(today.getMonth() + 1).padStart(2, "0");
+      const day = String(today.getDate()).padStart(2, "0");
+      return `${year}-${month}-${day}`;
+    }
+
+    function toLocalDate(dateValue) {
+      const [year, month, day] = dateValue.split("-").map(Number);
+      return new Date(year, month - 1, day);
+    }
+
+    function isSunday(dateValue) {
+      if (!dateValue) return false;
+      return toLocalDate(dateValue).getDay() === 0;
+    }
+
+    function formatDisplayDate(dateValue) {
+      if (!dateValue) return "";
+      return toLocalDate(dateValue).toLocaleDateString("en-IN", {
+        weekday: "long",
+        year: "numeric",
+        month: "long",
+        day: "numeric"
+      });
+    }
+
+    function formatShortDate(dateValue) {
+      if (!dateValue) return "";
+      const [year, month, day] = dateValue.split("-");
+      return `${day}-${month}-${year}`;
+    }
+
+    function toDateValue(date) {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const day = String(date.getDate()).padStart(2, "0");
+      return `${year}-${month}-${day}`;
+    }
+
+    function getCurrentMonthValue() {
+      return getTodayValue().slice(0, 7);
+    }
+
+    function getMonthRange(monthValue) {
+      const [year, month] = monthValue.split("-").map(Number);
+      const start = new Date(year, month - 1, 1);
+      const end = new Date(year, month, 0);
+      return {
+        start: toDateValue(start),
+        end: toDateValue(end)
+      };
+    }
+
+    function formatMonthLabel(monthValue) {
+      if (!monthValue) return "";
+      const [year, month] = monthValue.split("-").map(Number);
+      return new Date(year, month - 1, 1).toLocaleDateString("en-IN", {
+        month: "long",
+        year: "numeric"
+      });
+    }
+
+    function getRecentMonthOptions() {
+      const today = toLocalDate(getTodayValue());
+      return [0, 1, 2, 3, 4, 5].map((offset) => {
+        const date = new Date(today.getFullYear(), today.getMonth() - offset, 1);
+        const value = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+        const number = offset + 1;
+        return {
+          value,
+          label: `Last ${number} Month${number === 1 ? "" : "s"} (${formatMonthLabel(value)})`
+        };
+      });
+    }
+
+    function getAttendanceRecords() {
+      return appData.attendanceRecords || {};
+    }
+
+    function setAttendanceRecords(records) {
+      appData.attendanceRecords = records || {};
+    }
+
+    function getHolidayRecords() {
+      return appData.holidayRecords || {};
+    }
+
+    function setHolidayRecords(records) {
+      appData.holidayRecords = records || {};
+    }
+
+    function getAllTeachers() {
+      return appData.teachers || [];
+    }
+
+    function findTeacher(username) {
+      return getAllTeachers().find((teacher) => teacher.username === username);
+    }
+
+    function getAssignedStudents() {
+      if (!currentTeacher) return [];
+      return appData.students.filter((student) => student.className === currentTeacher.assignedClass);
+    }
+
+    function findStudentById(id) {
+      return appData.students.find((student) => Number(student.id) === Number(id));
+    }
+
+    function findAssignedStudentById(id) {
+      return getAssignedStudents().find((student) => Number(student.id) === Number(id));
+    }
+
+    function getTeacherRecord(dateValue) {
+      if (!currentTeacher || !dateValue) return null;
+      const records = getAttendanceRecords();
+      const record = records[dateValue]?.[currentTeacher.assignedClass]?.[currentTeacher.subject];
+      if (!record || record.teacherUsername !== currentTeacher.username) return null;
+      return record;
+    }
+
+    function getDateBlockStatus(dateValue) {
+      if (!dateValue) {
+        return { blocked: false, message: "" };
+      }
+
+      if (isSunday(dateValue)) {
+        return {
+          blocked: true,
+          type: "sunday",
+          message: "No class scheduled on Sunday. Attendance will not be counted."
+        };
+      }
+
+      const holiday = getHolidayRecords()[dateValue];
+      if (holiday) {
+        return {
+          blocked: true,
+          type: "holiday",
+          message: `Holiday: ${holiday.reason}. Attendance will not be counted.`
+        };
+      }
+
+      return { blocked: false, message: "" };
+    }
+
+    function showToast(message) {
+      elements.toast.textContent = message;
+      elements.toast.classList.add("show");
+      window.clearTimeout(showToast.timer);
+      showToast.timer = window.setTimeout(() => {
+        elements.toast.classList.remove("show");
+      }, 2600);
+    }
+
+    function setNotice(element, message, tone) {
+      element.textContent = message || "";
+      element.className = `notice${message ? " show" : ""}${tone ? ` ${tone}` : ""}`;
+    }
+
+    function renderDemoCredentials() {
+      const demoTeachers = appData.demoTeachers.length ? appData.demoTeachers : teachers;
+      elements.demoCredentials.innerHTML = demoTeachers.map((teacher) => `
+        <div class="demo-item">
+          <div>
+            <strong>${escapeHtml(teacher.teacherName)}</strong><br>
+            <span>${escapeHtml(teacher.subject)} - ${escapeHtml(teacher.assignedClass)}</span>
+          </div>
+          <code>${escapeHtml(teacher.username)} / ${escapeHtml(teacher.password)}</code>
+        </div>
+      `).join("");
+    }
+
+    function renderClassSuggestions() {
+      const classNames = getClassNames();
+      elements.classSuggestions.innerHTML = classNames
+        .map((className) => `<option value="${escapeHtml(className)}"></option>`)
+        .join("");
+    }
+
+    function getClassNames() {
+      return [...new Set([
+        ...(appData.classes || []),
+        ...appData.students.map((student) => student.className),
+        currentTeacher?.assignedClass
+      ].filter(Boolean))].sort();
+    }
+
+    function fillClassSelect(select, selectedValue, includeAll = false) {
+      const classes = getClassNames();
+      select.innerHTML = includeAll ? `<option value="">All classes</option>` : "";
+      classes.forEach((className) => {
+        const option = document.createElement("option");
+        option.value = className;
+        option.textContent = className;
+        select.appendChild(option);
+      });
+
+      if (selectedValue && classes.includes(selectedValue)) {
+        select.value = selectedValue;
+      } else if (!includeAll && classes.length) {
+        select.value = currentTeacher?.assignedClass && classes.includes(currentTeacher.assignedClass)
+          ? currentTeacher.assignedClass
+          : classes[0];
+      }
+    }
+
+    function showLogin() {
+      currentTeacher = null;
+      elements.loginView.classList.remove("hidden");
+      elements.appShell.classList.add("hidden");
+      elements.loginForm.classList.remove("hidden");
+      elements.registerForm.classList.add("hidden");
+      elements.loginForm.reset();
+      elements.registerForm.reset();
+      elements.loginError.textContent = "";
+      elements.registerError.textContent = "";
+      elements.username.focus();
+    }
+
+    function showRegister() {
+      elements.loginForm.classList.add("hidden");
+      elements.registerForm.classList.remove("hidden");
+      elements.loginError.textContent = "";
+      elements.registerError.textContent = "";
+      elements.registerTeacherName.focus();
+    }
+
+    function showLoginFormOnly() {
+      elements.registerForm.classList.add("hidden");
+      elements.loginForm.classList.remove("hidden");
+      elements.registerError.textContent = "";
+      elements.username.focus();
+    }
+
+    function showApp() {
+      elements.loginView.classList.add("hidden");
+      elements.appShell.classList.remove("hidden");
+      initializeTeacherView();
+    }
+
+    async function handleLogin(event) {
+      event.preventDefault();
+      const username = elements.username.value.trim();
+      const password = elements.password.value;
+      elements.loginError.textContent = "";
+
+      try {
+        const payload = await apiRequest("/api/login", {
+          method: "POST",
+          body: JSON.stringify({ username, password })
+        });
+        await loadBootstrapData();
+        localStorage.setItem(LOGIN_KEY, payload.teacher.username);
+        currentTeacher = payload.teacher;
+        showApp();
+        showToast(`Welcome, ${payload.teacher.teacherName}.`);
+      } catch (error) {
+        elements.loginError.textContent = error.message || "Wrong username or password.";
+        elements.password.value = "";
+        elements.password.focus();
+      }
+    }
+
+    function normalizeUsername(value) {
+      return value.trim().toLowerCase().replace(/\s+/g, "");
+    }
+
+    function normalizeClassName(value) {
+      return value.trim().toUpperCase().replace(/\s+/g, "");
+    }
+
+    async function handleRegister(event) {
+      event.preventDefault();
+      const teacherName = elements.registerTeacherName.value.trim();
+      const subject = elements.registerSubject.value.trim();
+      const assignedClass = normalizeClassName(elements.registerClass.value);
+      const username = normalizeUsername(elements.registerUsername.value);
+      const password = elements.registerPassword.value;
+
+      if (!teacherName || !subject || !assignedClass || !username || !password) {
+        elements.registerError.textContent = "Please fill every field.";
+        return;
+      }
+
+      if (password.length < 4) {
+        elements.registerError.textContent = "Password must be at least 4 characters.";
+        elements.registerPassword.focus();
+        return;
+      }
+
+      if (!/^[a-z0-9._-]+$/.test(username)) {
+        elements.registerError.textContent = "Username can use letters, numbers, dots, hyphens, and underscores only.";
+        elements.registerUsername.focus();
+        return;
+      }
+
+      try {
+        const payload = await apiRequest("/api/register", {
+          method: "POST",
+          body: JSON.stringify({ teacherName, subject, assignedClass, username, password })
+        });
+        await loadBootstrapData();
+        localStorage.setItem(LOGIN_KEY, payload.teacher.username);
+        currentTeacher = payload.teacher;
+        showApp();
+        showToast(`Account created for ${teacherName}.`);
+      } catch (error) {
+        elements.registerError.textContent = error.message || "Account could not be created.";
+        if (error.status === 409) elements.registerUsername.focus();
+      }
+    }
+
+    function logout() {
+      localStorage.removeItem(LOGIN_KEY);
+      showLogin();
+    }
+
+    async function restoreSession() {
+      const username = localStorage.getItem(LOGIN_KEY);
+
+      if (!username) {
+        localStorage.removeItem(LOGIN_KEY);
+        showLogin();
+        return;
+      }
+
+      try {
+        const payload = await apiRequest(`/api/teachers/${encodeURIComponent(username)}`);
+        currentTeacher = payload.teacher;
+        showApp();
+      } catch (error) {
+        localStorage.removeItem(LOGIN_KEY);
+        showLogin();
+      }
+    }
+
+    function setActiveView(viewId) {
+      elements.views.forEach((view) => {
+        view.classList.toggle("hidden", view.id !== viewId);
+      });
+
+      elements.navButtons.forEach((button) => {
+        button.classList.toggle("active", button.dataset.view === viewId);
+      });
+
+      const titles = {
+        dashboardView: ["Dashboard", "Attendance overview for the logged-in teacher."],
+        markView: ["Mark Attendance", "Select absent students for your assigned class."],
+        holidayView: ["Holiday Manager", "Manage dates that should not count in reports."],
+        classStudentView: ["Classes & Students", "Create classes and manage student rosters."],
+        dateReportView: ["Date-wise Report", "Review students and attendance percentages."],
+        studentReportView: ["Student-wise Report", "Check each student's working-day attendance."]
+      };
+      const [title, subtitle] = titles[viewId] || titles.dashboardView;
+      elements.pageTitle.textContent = title;
+      elements.pageSubtitle.textContent = subtitle;
+
+      if (viewId === "dashboardView") renderDashboard();
+      if (viewId === "markView") renderMarkAttendance();
+      if (viewId === "holidayView") renderHolidayManager();
+      if (viewId === "classStudentView") renderClassStudentManager(true);
+      if (viewId === "dateReportView") renderDateReport();
+      if (viewId === "studentReportView") renderStudentOptions();
+    }
+
+    function getStudentAttendanceSummary(studentId) {
+      const records = getAttendanceRecords();
+      let total = 0;
+      let present = 0;
+      let absent = 0;
+      const history = [];
+
+      Object.keys(records).sort().forEach((dateValue) => {
+        if (getDateBlockStatus(dateValue).blocked) return;
+        const record = records[dateValue]?.[currentTeacher.assignedClass]?.[currentTeacher.subject];
+        if (!record || record.teacherUsername !== currentTeacher.username) return;
+
+        const isPresent = Array.isArray(record.present) && record.present.includes(studentId);
+        const isAbsent = Array.isArray(record.absent) && record.absent.includes(studentId);
+        if (!isPresent && !isAbsent) return;
+
+        total += 1;
+        if (isPresent) {
+          present += 1;
+          history.push({ date: dateValue, status: "Present", subject: currentTeacher.subject });
+        }
+        if (isAbsent) {
+          absent += 1;
+          history.push({ date: dateValue, status: "Absent", subject: currentTeacher.subject });
+        }
+      });
+
+      const percentage = total ? Math.round((present / total) * 100) : 0;
+      return { total, present, absent, percentage, history };
+    }
+
+    function getStudentAttendanceSummaryForRange(studentId, startDate, endDate) {
+      const records = getAttendanceRecords();
+      let total = 0;
+      let present = 0;
+      let absent = 0;
+
+      Object.keys(records).sort().forEach((dateValue) => {
+        if (dateValue < startDate || dateValue > endDate) return;
+        if (getDateBlockStatus(dateValue).blocked) return;
+
+        const record = records[dateValue]?.[currentTeacher.assignedClass]?.[currentTeacher.subject];
+        if (!record || record.teacherUsername !== currentTeacher.username) return;
+
+        if ((record.present || []).includes(studentId)) {
+          total += 1;
+          present += 1;
+        } else if ((record.absent || []).includes(studentId)) {
+          total += 1;
+          absent += 1;
+        }
+      });
+
+      const percentage = total ? Math.round((present / total) * 100) : 0;
+      return { total, present, absent, percentage };
+    }
+
+    function getAttendanceSummaryForRange(startDate, endDate) {
+      const records = getAttendanceRecords();
+      let workingDays = 0;
+      let present = 0;
+      let absent = 0;
+
+      Object.keys(records).sort().forEach((dateValue) => {
+        if (dateValue < startDate || dateValue > endDate) return;
+        if (getDateBlockStatus(dateValue).blocked) return;
+
+        const record = records[dateValue]?.[currentTeacher.assignedClass]?.[currentTeacher.subject];
+        if (!record || record.teacherUsername !== currentTeacher.username) return;
+
+        workingDays += 1;
+        present += Array.isArray(record.present) ? record.present.length : 0;
+        absent += Array.isArray(record.absent) ? record.absent.length : 0;
+      });
+
+      const total = present + absent;
+      const percentage = total ? Math.round((present / total) * 100) : 0;
+      return { workingDays, present, absent, total, percentage };
+    }
+
+    function renderPercentageCard(label, summary, note) {
+      return `
+        <article class="percentage-card">
+          <span>${escapeHtml(label)}</span>
+          <strong>${summary.percentage}%</strong>
+          <p>${escapeHtml(note)}</p>
+        </article>
+      `;
+    }
+
+    function renderRecentMonthFilter() {
+      const options = getRecentMonthOptions();
+      const selectedMonth = elements.monthQuickFilter.value;
+      elements.monthQuickFilter.innerHTML = `
+        <option value="">Select last month</option>
+        ${options.map((option) => {
+          return `<option value="${option.value}">${escapeHtml(option.label)}</option>`;
+        }).join("")}
+      `;
+
+      if (options.some((option) => option.value === selectedMonth)) {
+        elements.monthQuickFilter.value = selectedMonth;
+      }
+    }
+
+    function getActiveDateReportRange() {
+      if (activeDateReportFilter === "date" && elements.dateReportDate.value) {
+        return {
+          type: "date",
+          start: elements.dateReportDate.value,
+          end: elements.dateReportDate.value,
+          label: formatShortDate(elements.dateReportDate.value)
+        };
+      }
+
+      if (activeDateReportFilter === "month" && elements.monthReportMonth.value) {
+        return {
+          type: "month",
+          ...getMonthRange(elements.monthReportMonth.value),
+          label: formatMonthLabel(elements.monthReportMonth.value)
+        };
+      }
+
+      if (activeDateReportFilter === "recent" && elements.monthQuickFilter.value) {
+        return {
+          type: "recent",
+          ...getMonthRange(elements.monthQuickFilter.value),
+          label: formatMonthLabel(elements.monthQuickFilter.value)
+        };
+      }
+
+      return null;
+    }
+
+    function renderAttendancePercentageReport() {
+      renderRecentMonthFilter();
+      const activeRange = getActiveDateReportRange();
+
+      if (!activeRange) {
+        elements.monthPercentageResult.innerHTML = `<div class="empty-state">Select Date, Particular Month, or Last Month.</div>`;
+        return;
+      }
+
+      const summary = getAttendanceSummaryForRange(activeRange.start, activeRange.end);
+      const emptyText = activeRange.type === "date" ? "No attendance records for this date" : "No attendance records for this month";
+      const note = summary.total
+        ? `${summary.present} present marks out of ${summary.total} total marks`
+        : emptyText;
+
+      elements.monthPercentageResult.innerHTML = renderPercentageCard(activeRange.label, summary, note);
+    }
+
+    function handleDateFilterChange() {
+      if (elements.dateReportDate.value) {
+        activeDateReportFilter = "date";
+        elements.monthReportMonth.value = "";
+        elements.monthQuickFilter.value = "";
+      }
+      renderDateReport();
+    }
+
+    function handleParticularMonthFilterChange() {
+      if (elements.monthReportMonth.value) {
+        activeDateReportFilter = "month";
+        elements.dateReportDate.value = "";
+        elements.monthQuickFilter.value = "";
+      }
+      renderDateReport();
+    }
+
+    function applyRecentMonthFilter() {
+      if (elements.monthQuickFilter.value) {
+        activeDateReportFilter = "recent";
+        elements.dateReportDate.value = "";
+        elements.monthReportMonth.value = "";
+      }
+      renderDateReport();
+    }
+
+    function sortStudents(list, sortValue) {
+      const withSummary = list.map((student) => ({
+        student,
+        summary: getStudentAttendanceSummary(student.id)
+      }));
+
+      withSummary.sort((a, b) => {
+        if (sortValue === "rollDesc") return b.student.rollNo - a.student.rollNo;
+        if (sortValue === "pctDesc") {
+          return b.summary.percentage - a.summary.percentage || a.student.rollNo - b.student.rollNo;
+        }
+        if (sortValue === "pctAsc") {
+          return a.summary.percentage - b.summary.percentage || a.student.rollNo - b.student.rollNo;
+        }
+        return a.student.rollNo - b.student.rollNo;
+      });
+
+      return withSummary;
+    }
+
+    function renderDashboard() {
+      const today = getTodayValue();
+      const classStudents = getAssignedStudents();
+      const status = getDateBlockStatus(today);
+      const record = status.blocked ? null : getTeacherRecord(today);
+      const present = Array.isArray(record?.present) ? record.present.length : 0;
+      const absent = Array.isArray(record?.absent) ? record.absent.length : 0;
+      const totalMarked = present + absent;
+      const percent = totalMarked ? Math.round((present / totalMarked) * 100) : 0;
+
+      elements.todayDate.textContent = formatDisplayDate(today);
+      elements.sidebarTeacher.textContent = currentTeacher.teacherName;
+      elements.sidebarScope.textContent = `${currentTeacher.subject} - ${currentTeacher.assignedClass}`;
+      elements.dashTeacherName.textContent = currentTeacher.teacherName;
+      elements.dashSubject.textContent = currentTeacher.subject;
+      fillClassSelect(elements.dashClassSelect, currentTeacher.assignedClass);
+      elements.totalStudents.textContent = classStudents.length;
+      elements.presentToday.textContent = present;
+      elements.absentToday.textContent = absent;
+      elements.attendancePercent.textContent = `${percent}%`;
+
+      if (status.blocked) {
+        elements.presentNote.textContent = "No working day today";
+        elements.absentNote.textContent = "No working day today";
+        elements.percentNote.textContent = "Ignored in reports";
+        setNotice(elements.dashboardNotice, status.message, status.type === "holiday" ? "warning" : "");
+      } else if (record) {
+        elements.presentNote.textContent = "Saved for today";
+        elements.absentNote.textContent = "Saved for today";
+        elements.percentNote.textContent = "Based on today's saved record";
+        setNotice(elements.dashboardNotice, `Today's attendance is saved for ${currentTeacher.assignedClass} - ${currentTeacher.subject}.`, "success");
+      } else {
+        elements.presentNote.textContent = "No attendance saved today";
+        elements.absentNote.textContent = "No attendance saved today";
+        elements.percentNote.textContent = "Awaiting today's record";
+        setNotice(elements.dashboardNotice, `No attendance record exists for today (${formatShortDate(today)}).`, "");
+      }
+    }
+
+    function renderTeacherScopeText() {
+      const scope = `${currentTeacher.assignedClass} - ${currentTeacher.subject}`;
+      elements.markScope.textContent = scope;
+      elements.dateReportScope.textContent = scope;
+      elements.studentReportScope.textContent = scope;
+      elements.markClassDisplay.value = currentTeacher.assignedClass;
+      elements.dateClassDisplay.value = currentTeacher.assignedClass;
+    }
+
+    async function changeDashboardClass() {
+      const assignedClass = elements.dashClassSelect.value;
+      if (!assignedClass || assignedClass === currentTeacher.assignedClass) return;
+
+      try {
+        const payload = await apiRequest(`/api/teachers/${encodeURIComponent(currentTeacher.username)}/class`, {
+          method: "PATCH",
+          body: JSON.stringify({ assignedClass })
+        });
+        currentTeacher = payload.teacher;
+        appData.teachers = payload.teachers || appData.teachers;
+        appData.classes = payload.classes || appData.classes;
+        renderClassSuggestions();
+        renderTeacherScopeText();
+        renderDashboard();
+        renderMarkAttendance();
+        renderDateReport();
+        renderStudentOptions(false);
+        renderClassStudentManager(true);
+        showToast(`Dashboard class changed to ${currentTeacher.assignedClass}.`);
+      } catch (error) {
+        elements.dashClassSelect.value = currentTeacher.assignedClass;
+        showToast(error.message || "Class could not be changed.");
+      }
+    }
+
+    function renderMarkAttendance() {
+      const dateValue = elements.markDate.value;
+      const classStudents = getAssignedStudents();
+      const sortedStudents = sortStudents(classStudents, elements.markSort.value);
+      const status = getDateBlockStatus(dateValue);
+      const record = getTeacherRecord(dateValue);
+
+      elements.classSizeBadge.textContent = `${classStudents.length} student${classStudents.length === 1 ? "" : "s"}`;
+      elements.saveAttendance.disabled = status.blocked || classStudents.length === 0;
+      elements.saveNote.textContent = "";
+
+      if (!dateValue) {
+        setNotice(elements.markNotice, "Select a date before saving attendance.", "");
+      } else if (status.blocked) {
+        setNotice(elements.markNotice, status.message, status.type === "holiday" ? "warning" : "");
+      } else if (record) {
+        setNotice(elements.markNotice, "Existing attendance has been loaded for this date. Saving will ask before overwriting.", "");
+      } else {
+        setNotice(elements.markNotice, "", "");
+      }
+
+      if (!classStudents.length) {
+        elements.studentList.innerHTML = `<div class="empty-state">No students found for ${escapeHtml(currentTeacher.assignedClass)}.</div>`;
+        return;
+      }
+
+      const absentIds = new Set(record?.absent || []);
+      const rows = sortedStudents.map(({ student, summary }) => `
+        <tr>
+          <td class="roll-cell">${student.rollNo}</td>
+          <td>
+            <div class="student-name">${escapeHtml(student.name)}</div>
+            <div class="muted">ID ${student.id}</div>
+          </td>
+          <td>${escapeHtml(student.className)}</td>
+          <td><span class="badge neutral">${summary.percentage}%</span></td>
+          <td>
+            <label class="absent-toggle">
+              <input type="checkbox" class="absent-checkbox" value="${student.id}" ${absentIds.has(student.id) ? "checked" : ""} ${status.blocked ? "disabled" : ""}>
+              Absent
+            </label>
+          </td>
+        </tr>
+      `).join("");
+
+      elements.studentList.innerHTML = `
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Roll No</th>
+                <th>Student</th>
+                <th>Class</th>
+                <th>Attendance %</th>
+                <th>Mark</th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      `;
+    }
+
+    function getCheckedAbsentIds() {
+      return [...elements.studentList.querySelectorAll(".absent-checkbox:checked")]
+        .map((checkbox) => Number(checkbox.value));
+    }
+
+    async function saveAttendance() {
+      const dateValue = elements.markDate.value;
+      const classStudents = getAssignedStudents();
+      const status = getDateBlockStatus(dateValue);
+
+      if (!dateValue) {
+        showToast("Please select a date.");
+        elements.markDate.focus();
+        return;
+      }
+
+      if (status.blocked) {
+        showToast(status.message);
+        return;
+      }
+
+      if (!classStudents.length) {
+        showToast("No students found for this class.");
+        return;
+      }
+
+      const records = getAttendanceRecords();
+      const existingRecord = records[dateValue]?.[currentTeacher.assignedClass]?.[currentTeacher.subject];
+
+      if (existingRecord && existingRecord.teacherUsername !== currentTeacher.username) {
+        showToast("This subject record belongs to another teacher.");
+        return;
+      }
+
+      if (existingRecord) {
+        const shouldOverwrite = window.confirm(
+          `Attendance already exists for ${currentTeacher.assignedClass}, ${currentTeacher.subject}, ${formatShortDate(dateValue)}. Overwrite this record?`
+        );
+        if (!shouldOverwrite) return;
+      }
+
+      const absent = getCheckedAbsentIds();
+      try {
+        const payload = await apiRequest("/api/attendance", {
+          method: "POST",
+          body: JSON.stringify({
+            date: dateValue,
+            teacherUsername: currentTeacher.username,
+            absent,
+            overwrite: Boolean(existingRecord)
+          })
+        });
+
+        setAttendanceRecords(payload.attendanceRecords);
+        generateWhatsAppMessage(dateValue, absent);
+        renderDashboard();
+        renderMarkAttendance();
+        renderDateReport();
+        renderStudentOptions(false);
+        elements.saveNote.textContent = "Attendance saved.";
+        showToast("Attendance saved successfully.");
+      } catch (error) {
+        showToast(error.message || "Attendance could not be saved.");
+      }
+    }
+
+    function generateWhatsAppMessage(dateValue, absentIds) {
+      const absentStudents = absentIds
+        .map((id) => findAssignedStudentById(id))
+        .filter(Boolean)
+        .sort((a, b) => a.rollNo - b.rollNo);
+
+      const absentLines = absentStudents.length
+        ? absentStudents.map((student, index) => `${index + 1}. ${student.rollNo} - ${student.name}`).join("\n")
+        : "None";
+
+      elements.whatsappMessage.value = [
+        `Date: ${formatShortDate(dateValue)}`,
+        `Class: ${currentTeacher.assignedClass}`,
+        `Subject: ${currentTeacher.subject}`,
+        "Absent Students:",
+        absentLines
+      ].join("\n");
+
+      elements.copyMessage.disabled = false;
+      elements.copyStatus.textContent = "";
+    }
+
+    async function copyWhatsAppMessage() {
+      const message = elements.whatsappMessage.value.trim();
+      if (!message) {
+        showToast("No message to copy.");
+        return;
+      }
+
+      try {
+        if (navigator.clipboard && window.isSecureContext) {
+          await navigator.clipboard.writeText(message);
+        } else {
+          elements.whatsappMessage.select();
+          document.execCommand("copy");
+          window.getSelection().removeAllRanges();
+        }
+        elements.copyStatus.textContent = "Message copied.";
+        showToast("Message copied.");
+      } catch (error) {
+        elements.copyStatus.textContent = "Copy failed. Select the message and copy it manually.";
+      }
+    }
+
+    async function addHoliday() {
+      const dateValue = elements.holidayDate.value;
+      const reason = elements.holidayReason.value.trim();
+
+      if (!dateValue) {
+        setNotice(elements.holidayNotice, "Select a holiday date.", "danger");
+        elements.holidayDate.focus();
+        return;
+      }
+
+      if (!reason) {
+        setNotice(elements.holidayNotice, "Add a holiday reason.", "danger");
+        elements.holidayReason.focus();
+        return;
+      }
+
+      const holidays = getHolidayRecords();
+      let overwrite = false;
+      if (holidays[dateValue]) {
+        overwrite = window.confirm(`A holiday already exists on ${formatShortDate(dateValue)}. Overwrite it?`);
+        if (!overwrite) return;
+      }
+
+      try {
+        const payload = await apiRequest("/api/holidays", {
+          method: "POST",
+          body: JSON.stringify({
+            date: dateValue,
+            reason,
+            addedBy: currentTeacher.username,
+            overwrite
+          })
+        });
+        setHolidayRecords(payload.holidayRecords);
+        elements.holidayReason.value = "";
+        setNotice(elements.holidayNotice, `Holiday saved for ${formatShortDate(dateValue)}.`, "success");
+        renderHolidayManager();
+        renderDashboard();
+        renderMarkAttendance();
+        renderDateReport();
+        renderStudentOptions(false);
+      } catch (error) {
+        setNotice(elements.holidayNotice, error.message || "Holiday could not be saved.", "danger");
+      }
+    }
+
+    async function removeHoliday(dateValue) {
+      const holidays = getHolidayRecords();
+      if (!holidays[dateValue]) return;
+
+      const shouldRemove = window.confirm(`Remove holiday on ${formatShortDate(dateValue)}?`);
+      if (!shouldRemove) return;
+
+      try {
+        const payload = await apiRequest(`/api/holidays/${encodeURIComponent(dateValue)}?username=${encodeURIComponent(currentTeacher.username)}`, {
+          method: "DELETE"
+        });
+        setHolidayRecords(payload.holidayRecords);
+        setNotice(elements.holidayNotice, `Holiday removed for ${formatShortDate(dateValue)}.`, "success");
+        renderHolidayManager();
+        renderDashboard();
+        renderMarkAttendance();
+        renderDateReport();
+        renderStudentOptions(false);
+      } catch (error) {
+        setNotice(elements.holidayNotice, error.message || "Holiday could not be removed.", "danger");
+      }
+    }
+
+    function renderHolidayManager() {
+      const holidays = getHolidayRecords();
+      const dates = Object.keys(holidays).sort((a, b) => b.localeCompare(a));
+
+      if (!dates.length) {
+        elements.holidayList.innerHTML = `<div class="empty-state">No holidays have been added.</div>`;
+        return;
+      }
+
+      const rows = dates.map((dateValue) => {
+        const holiday = holidays[dateValue];
+        const addedTeacher = findTeacher(holiday.addedBy);
+        return `
+          <tr>
+            <td>${formatShortDate(dateValue)}</td>
+            <td><span class="badge holiday">Holiday</span></td>
+            <td>${escapeHtml(holiday.reason)}</td>
+            <td>${escapeHtml(addedTeacher?.teacherName || holiday.addedBy || "-")}</td>
+            <td>
+              <button class="danger-btn remove-holiday" type="button" data-date="${dateValue}">Remove</button>
+            </td>
+          </tr>
+        `;
+      }).join("");
+
+      elements.holidayList.innerHTML = `
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Status</th>
+                <th>Reason</th>
+                <th>Added By</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      `;
+
+      elements.holidayList.querySelectorAll(".remove-holiday").forEach((button) => {
+        button.addEventListener("click", () => removeHoliday(button.dataset.date));
+      });
+    }
+
+    function refreshAfterRosterChange(message) {
+      renderClassSuggestions();
+      renderTeacherScopeText();
+      renderDashboard();
+      renderMarkAttendance();
+      renderClassStudentManager();
+      renderStudentOptions(false);
+      renderDateReport();
+      if (message) {
+        setNotice(elements.classStudentNotice, message, "success");
+      }
+    }
+
+    async function createClass() {
+      const className = normalizeClassName(elements.newClassName.value);
+      if (!className) {
+        setNotice(elements.classStudentNotice, "Enter a class name.", "danger");
+        elements.newClassName.focus();
+        return;
+      }
+
+      try {
+        const payload = await apiRequest("/api/classes", {
+          method: "POST",
+          body: JSON.stringify({
+            className,
+            teacherUsername: currentTeacher.username,
+            assignToTeacher: elements.assignNewClass.checked
+          })
+        });
+        appData.classes = payload.classes || appData.classes;
+        appData.teachers = payload.teachers || appData.teachers;
+        if (payload.teacher) currentTeacher = payload.teacher;
+        elements.newClassName.value = "";
+        refreshAfterRosterChange(`Class ${className} created.`);
+      } catch (error) {
+        setNotice(elements.classStudentNotice, error.message || "Class could not be created.", "danger");
+      }
+    }
+
+    async function addStudentManually() {
+      const className = elements.manualStudentClass.value;
+      const rollNo = Number(elements.manualRollNo.value);
+      const name = elements.manualStudentName.value.trim();
+
+      if (!className || !rollNo || !name) {
+        setNotice(elements.classStudentNotice, "Select class, roll number, and student name.", "danger");
+        return;
+      }
+
+      try {
+        const payload = await apiRequest("/api/students", {
+          method: "POST",
+          body: JSON.stringify({
+            teacherUsername: currentTeacher.username,
+            className,
+            rollNo,
+            name
+          })
+        });
+        appData.students = payload.students || appData.students;
+        appData.classes = payload.classes || appData.classes;
+        elements.manualRollNo.value = "";
+        elements.manualStudentName.value = "";
+        refreshAfterRosterChange(`${name} added to ${className}.`);
+      } catch (error) {
+        setNotice(elements.classStudentNotice, error.message || "Student could not be added.", "danger");
+      }
+    }
+
+    function parseDelimitedRows(text, delimiter) {
+      const rows = [];
+      let row = [];
+      let cell = "";
+      let inQuotes = false;
+
+      for (let index = 0; index < text.length; index += 1) {
+        const char = text[index];
+        const next = text[index + 1];
+
+        if (char === '"' && inQuotes && next === '"') {
+          cell += '"';
+          index += 1;
+        } else if (char === '"') {
+          inQuotes = !inQuotes;
+        } else if (char === delimiter && !inQuotes) {
+          row.push(cell.trim());
+          cell = "";
+        } else if ((char === "\n" || char === "\r") && !inQuotes) {
+          if (char === "\r" && next === "\n") index += 1;
+          row.push(cell.trim());
+          if (row.some(Boolean)) rows.push(row);
+          row = [];
+          cell = "";
+        } else {
+          cell += char;
+        }
+      }
+
+      row.push(cell.trim());
+      if (row.some(Boolean)) rows.push(row);
+      return rows;
+    }
+
+    function headerKey(value) {
+      return String(value || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+    }
+
+    function rowsToStudentObjects(rows, fallbackClassName) {
+      const cleanRows = rows.filter((row) => row.some((cell) => String(cell || "").trim()));
+      if (!cleanRows.length) return [];
+
+      const firstRow = cleanRows[0].map(headerKey);
+      const hasHeader = firstRow.includes("rollno") || firstRow.includes("rollnumber") || firstRow.includes("name");
+      const dataRows = hasHeader ? cleanRows.slice(1) : cleanRows;
+      const rollIndex = hasHeader ? firstRow.findIndex((key) => key === "rollno" || key === "rollnumber" || key === "roll") : 0;
+      const nameIndex = hasHeader ? firstRow.findIndex((key) => key === "name" || key === "studentname") : 1;
+      const classIndex = hasHeader ? firstRow.findIndex((key) => key === "classname" || key === "class") : 2;
+
+      return dataRows.map((row) => ({
+        rollNo: row[rollIndex],
+        name: row[nameIndex],
+        className: classIndex >= 0 ? row[classIndex] : fallbackClassName
+      })).filter((student) => student.rollNo && student.name);
+    }
+
+    async function readStudentSheet(file, fallbackClassName) {
+      const extension = file.name.split(".").pop().toLowerCase();
+
+      if (extension === "xlsx") {
+        if (!window.XLSX) {
+          throw new Error("XLSX parser is not available. Save the sheet as CSV and import again.");
+        }
+        const bytes = await file.arrayBuffer();
+        const workbook = window.XLSX.read(bytes, { type: "array" });
+        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+        const rows = window.XLSX.utils.sheet_to_json(firstSheet, { header: 1, raw: false });
+        return rowsToStudentObjects(rows, fallbackClassName);
+      }
+
+      const text = await file.text();
+      const delimiter = extension === "tsv" || text.includes("\t") ? "\t" : ",";
+      return rowsToStudentObjects(parseDelimitedRows(text, delimiter), fallbackClassName);
+    }
+
+    async function importStudentsFromSheet() {
+      const className = elements.importStudentClass.value;
+      const file = elements.importSheetFile.files[0];
+
+      if (!className || !file) {
+        setNotice(elements.classStudentNotice, "Select a class and sheet file.", "danger");
+        return;
+      }
+
+      try {
+        const importedStudents = await readStudentSheet(file, className);
+        if (!importedStudents.length) {
+          setNotice(elements.classStudentNotice, "No valid students found in the sheet.", "danger");
+          return;
+        }
+
+        const payload = await apiRequest("/api/students/import", {
+          method: "POST",
+          body: JSON.stringify({
+            teacherUsername: currentTeacher.username,
+            className,
+            students: importedStudents
+          })
+        });
+
+        appData.students = payload.students || appData.students;
+        appData.classes = payload.classes || appData.classes;
+        elements.importSheetFile.value = "";
+        refreshAfterRosterChange(`Imported ${payload.imported} student${payload.imported === 1 ? "" : "s"}. Skipped ${payload.skipped}.`);
+      } catch (error) {
+        setNotice(elements.classStudentNotice, error.message || "Students could not be imported.", "danger");
+      }
+    }
+
+    function renderClassStudentManager(useDashboardClassDefault = false) {
+      const classes = getClassNames();
+      const defaultClass = currentTeacher.assignedClass;
+      elements.classCountBadge.textContent = `${classes.length} class${classes.length === 1 ? "" : "es"}`;
+      fillClassSelect(elements.manualStudentClass, useDashboardClassDefault ? defaultClass : (elements.manualStudentClass.value || defaultClass));
+      fillClassSelect(elements.importStudentClass, useDashboardClassDefault ? defaultClass : (elements.importStudentClass.value || defaultClass));
+      fillClassSelect(elements.studentRosterClass, useDashboardClassDefault ? defaultClass : (elements.studentRosterClass.value || defaultClass), true);
+
+      const selectedClass = elements.studentRosterClass.value;
+      const rosterStudents = appData.students
+        .filter((student) => !selectedClass || student.className === selectedClass)
+        .sort((a, b) => a.className.localeCompare(b.className) || a.rollNo - b.rollNo);
+
+      if (!rosterStudents.length) {
+        elements.studentRoster.innerHTML = `<div class="empty-state">No students found for this class.</div>`;
+        return;
+      }
+
+      elements.studentRoster.innerHTML = `
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Class</th>
+                <th>Roll No</th>
+                <th>Name</th>
+                <th>Student ID</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rosterStudents.map((student) => `
+                <tr>
+                  <td><span class="badge neutral">${escapeHtml(student.className)}</span></td>
+                  <td class="roll-cell">${student.rollNo}</td>
+                  <td class="student-name">${escapeHtml(student.name)}</td>
+                  <td>${student.id}</td>
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+        </div>
+      `;
+    }
+
+    function getDateReportStudentEntries(sortValue, activeRange) {
+      const entries = getAssignedStudents().map((student) => ({
+        student,
+        summary: getStudentAttendanceSummaryForRange(student.id, activeRange.start, activeRange.end)
+      }));
+
+      entries.sort((a, b) => {
+        if (sortValue === "pctDesc") return b.summary.percentage - a.summary.percentage || a.student.rollNo - b.student.rollNo;
+        return a.student.rollNo - b.student.rollNo;
+      });
+
+      return entries;
+    }
+
+    function renderDateReport() {
+      renderAttendancePercentageReport();
+      const activeRange = getActiveDateReportRange();
+
+      if (!activeRange) {
+        elements.dateRecord.innerHTML = `<div class="empty-state">Select Date, Particular Month, or Last Month to view the report.</div>`;
+        return;
+      }
+
+      const status = activeRange.type === "date" ? getDateBlockStatus(activeRange.start) : { blocked: false };
+      if (status.blocked) {
+        const badgeClass = status.type === "holiday" ? "holiday" : "neutral";
+        elements.dateRecord.innerHTML = `
+          <div class="empty-state">
+            <span class="badge ${badgeClass}">${status.type === "holiday" ? "Holiday" : "Sunday"}</span><br><br>
+            ${escapeHtml(status.message)}
+          </div>
+        `;
+        return;
+      }
+
+      const studentEntries = getDateReportStudentEntries(elements.dateReportSort.value, activeRange);
+      const tableFor = (entries, emptyText) => {
+        if (!entries.length) return `<div class="empty-state">${emptyText}</div>`;
+        return `
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Roll No</th>
+                  <th>Name</th>
+                  <th>Attendance %</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${entries.map((entry) => `
+                  <tr>
+                    <td class="roll-cell">${entry.student.rollNo}</td>
+                    <td class="student-name">${escapeHtml(entry.student.name)}</td>
+                    <td><span class="badge neutral">${entry.summary.percentage}%</span></td>
+                  </tr>
+                `).join("")}
+              </tbody>
+            </table>
+          </div>
+        `;
+      };
+
+      elements.dateRecord.innerHTML = `
+        <section class="report-block">
+          <div class="report-block-header">
+            <span>Students Attendance Percentage</span>
+            <span class="badge neutral">${studentEntries.length}</span>
+          </div>
+          ${tableFor(studentEntries, "No students found for this class.")}
+        </section>
+      `;
+    }
+
+    function renderStudentOptions(keepSelection = true) {
+      const previousValue = keepSelection ? elements.reportStudent.value : "";
+      const sortedStudents = sortStudents(getAssignedStudents(), elements.studentSort.value);
+
+      elements.reportStudent.innerHTML = `<option value="">Select student</option>`;
+      sortedStudents.forEach(({ student, summary }) => {
+        const option = document.createElement("option");
+        option.value = student.id;
+        option.textContent = `${student.rollNo} - ${student.name} (${summary.percentage}%)`;
+        elements.reportStudent.appendChild(option);
+      });
+
+      if (previousValue && sortedStudents.some(({ student }) => String(student.id) === String(previousValue))) {
+        elements.reportStudent.value = previousValue;
+      }
+
+      renderStudentReport();
+    }
+
+    function renderStudentReport() {
+      const studentId = Number(elements.reportStudent.value);
+
+      if (!studentId) {
+        elements.studentReport.innerHTML = `<div class="empty-state">Select a student to view the report.</div>`;
+        return;
+      }
+
+      const student = findAssignedStudentById(studentId);
+      if (!student) {
+        elements.studentReport.innerHTML = `<div class="empty-state">No students found for ${escapeHtml(currentTeacher.assignedClass)}.</div>`;
+        return;
+      }
+
+      const summary = getStudentAttendanceSummary(studentId);
+      const warning = summary.total && summary.percentage < 75
+        ? `<p class="notice danger show">Low attendance warning: attendance is below 75%.</p>`
+        : "";
+      const historyRows = summary.history
+        .slice()
+        .sort((a, b) => b.date.localeCompare(a.date))
+        .map((item) => `
+          <tr>
+            <td>${formatShortDate(item.date)}</td>
+            <td><span class="badge ${item.status === "Present" ? "present" : "absent"}">${item.status}</span></td>
+            <td>${escapeHtml(item.subject)}</td>
+          </tr>
+        `).join("");
+
+      elements.studentReport.innerHTML = `
+        <div class="student-report-heading">
+          <h3>${student.rollNo} - ${escapeHtml(student.name)}</h3>
+          <span class="badge neutral">${escapeHtml(student.className)}</span>
+        </div>
+        <div class="mini-stats">
+          <div class="mini-stat">
+            <span>Total Working Days</span>
+            <strong>${summary.total}</strong>
+          </div>
+          <div class="mini-stat">
+            <span>Present Days</span>
+            <strong>${summary.present}</strong>
+          </div>
+          <div class="mini-stat">
+            <span>Absent Days</span>
+            <strong>${summary.absent}</strong>
+          </div>
+          <div class="mini-stat">
+            <span>Attendance %</span>
+            <strong>${summary.percentage}%</strong>
+          </div>
+        </div>
+        ${warning}
+        ${historyRows ? `
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Status</th>
+                  <th>Subject</th>
+                </tr>
+              </thead>
+              <tbody>${historyRows}</tbody>
+            </table>
+          </div>
+        ` : `<div class="empty-state">No attendance history exists for this student.</div>`}
+      `;
+    }
+
+    function initializeTeacherView() {
+      const today = getTodayValue();
+      elements.markDate.value = elements.markDate.value || today;
+      elements.dateReportDate.value = elements.dateReportDate.value || today;
+      elements.monthReportMonth.value = "";
+      elements.monthQuickFilter.value = "";
+      activeDateReportFilter = "date";
+      elements.holidayDate.value = elements.holidayDate.value || today;
+      elements.whatsappMessage.value = "";
+      elements.copyMessage.disabled = true;
+      elements.copyStatus.textContent = "";
+      renderTeacherScopeText();
+      renderDashboard();
+      renderMarkAttendance();
+      renderHolidayManager();
+      renderClassStudentManager();
+      renderDateReport();
+      renderStudentOptions(false);
+      setActiveView("dashboardView");
+    }
+
+    function bindEvents() {
+      elements.loginForm.addEventListener("submit", handleLogin);
+      elements.registerForm.addEventListener("submit", handleRegister);
+      elements.showRegisterBtn.addEventListener("click", showRegister);
+      elements.showLoginBtn.addEventListener("click", showLoginFormOnly);
+      elements.logoutBtn.addEventListener("click", logout);
+      elements.dashClassSelect.addEventListener("change", changeDashboardClass);
+      elements.navButtons.forEach((button) => {
+        button.addEventListener("click", () => setActiveView(button.dataset.view));
+      });
+      elements.markDate.addEventListener("change", renderMarkAttendance);
+      elements.markSort.addEventListener("change", renderMarkAttendance);
+      elements.saveAttendance.addEventListener("click", saveAttendance);
+      elements.copyMessage.addEventListener("click", copyWhatsAppMessage);
+      elements.addHoliday.addEventListener("click", addHoliday);
+      elements.createClassBtn.addEventListener("click", createClass);
+      elements.addStudentBtn.addEventListener("click", addStudentManually);
+      elements.importStudentsBtn.addEventListener("click", importStudentsFromSheet);
+      elements.studentRosterClass.addEventListener("change", renderClassStudentManager);
+      elements.dateReportDate.addEventListener("change", handleDateFilterChange);
+      elements.dateReportSort.addEventListener("change", renderDateReport);
+      elements.monthReportMonth.addEventListener("change", handleParticularMonthFilterChange);
+      elements.monthQuickFilter.addEventListener("change", applyRecentMonthFilter);
+      elements.studentSort.addEventListener("change", () => renderStudentOptions(true));
+      elements.reportStudent.addEventListener("change", renderStudentReport);
+    }
+
+    async function init() {
+      bindEvents();
+      try {
+        await loadBootstrapData();
+        renderDemoCredentials();
+        renderClassSuggestions();
+        await restoreSession();
+      } catch (error) {
+        console.error(error);
+        renderDemoCredentials();
+        renderClassSuggestions();
+        showLogin();
+        elements.loginError.textContent = "Backend is not reachable. Start it with: node server.js";
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>

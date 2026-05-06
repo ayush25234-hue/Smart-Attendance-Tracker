@@ -1,0 +1,9 @@
+{
+  "name": "smart-attendance-tracker",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Vanilla frontend with a dependency-free Node backend for school attendance tracking.",
+  "scripts": {
+    "start": "node server.js"
+  }
+}
