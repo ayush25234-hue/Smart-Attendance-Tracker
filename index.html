@@ -812,6 +812,33 @@
       margin-top: 14px;
     }
 
+    .search-results {
+      display: grid;
+      gap: 8px;
+      margin: -4px 0 16px;
+    }
+
+    .search-result-btn {
+      display: grid;
+      grid-template-columns: 88px minmax(0, 1fr) auto;
+      gap: 10px;
+      align-items: center;
+      width: 100%;
+      min-height: 48px;
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: #fff;
+      color: var(--ink);
+      text-align: left;
+      font-weight: 800;
+    }
+
+    .search-result-btn:hover {
+      border-color: #bfcee3;
+      background: #edf4ff;
+    }
+
     .date-period-row,
     .date-meta-row {
       display: grid;
@@ -1351,21 +1378,11 @@
             </div>
           </div>
           <div class="panel-body">
-            <div class="controls-row two">
-              <div class="field">
-                <label for="studentSort">Sort Students</label>
-                <select id="studentSort">
-                  <option value="rollAsc">Roll No ascending</option>
-                  <option value="pctDesc">Attendance percentage high to low</option>
-                </select>
-              </div>
-              <div class="field">
-                <label for="reportStudent">Student</label>
-                <select id="reportStudent">
-                  <option value="">Select student</option>
-                </select>
-              </div>
+            <div class="field">
+              <label for="studentSearch">Search Student</label>
+              <input id="studentSearch" type="search" placeholder="Type roll number or student name">
             </div>
+            <div class="search-results" id="studentSearchResults"></div>
             <div id="studentReport">
               <div class="empty-state">Select a student to view the report.</div>
             </div>
@@ -1531,8 +1548,8 @@
       monthPercentageResult: document.getElementById("monthPercentageResult"),
       dateRecord: document.getElementById("dateRecord"),
       studentReportScope: document.getElementById("studentReportScope"),
-      studentSort: document.getElementById("studentSort"),
-      reportStudent: document.getElementById("reportStudent"),
+      studentSearch: document.getElementById("studentSearch"),
+      studentSearchResults: document.getElementById("studentSearchResults"),
       studentReport: document.getElementById("studentReport"),
       toast: document.getElementById("toast")
     };
@@ -1963,7 +1980,7 @@
       if (viewId === "holidayView") renderHolidayManager();
       if (viewId === "classStudentView") renderClassStudentManager(true);
       if (viewId === "dateReportView") renderDateReport();
-      if (viewId === "studentReportView") renderStudentOptions();
+      if (viewId === "studentReportView") renderStudentSearchResults();
     }
 
     function getStudentAttendanceSummary(studentId) {
@@ -2230,7 +2247,7 @@
         renderDashboard();
         renderMarkAttendance();
         renderDateReport();
-        renderStudentOptions(false);
+        resetStudentSearch();
         renderClassStudentManager(true);
         showToast(`Dashboard class changed to ${currentTeacher.assignedClass}.`);
       } catch (error) {
@@ -2360,7 +2377,7 @@
         renderDashboard();
         renderMarkAttendance();
         renderDateReport();
-        renderStudentOptions(false);
+        renderStudentSearchResults();
         elements.saveNote.textContent = "Attendance saved.";
         showToast("Attendance saved successfully.");
       } catch (error) {
@@ -2452,7 +2469,7 @@
         renderDashboard();
         renderMarkAttendance();
         renderDateReport();
-        renderStudentOptions(false);
+        renderStudentSearchResults();
       } catch (error) {
         setNotice(elements.holidayNotice, error.message || "Holiday could not be saved.", "danger");
       }
@@ -2475,7 +2492,7 @@
         renderDashboard();
         renderMarkAttendance();
         renderDateReport();
-        renderStudentOptions(false);
+        renderStudentSearchResults();
       } catch (error) {
         setNotice(elements.holidayNotice, error.message || "Holiday could not be removed.", "danger");
       }
@@ -2534,7 +2551,7 @@
       renderDashboard();
       renderMarkAttendance();
       renderClassStudentManager();
-      renderStudentOptions(false);
+      renderStudentSearchResults();
       renderDateReport();
       if (message) {
         setNotice(elements.classStudentNotice, message, "success");
@@ -2824,30 +2841,60 @@
       `;
     }
 
-    function renderStudentOptions(keepSelection = true) {
-      const previousValue = keepSelection ? elements.reportStudent.value : "";
-      const sortedStudents = sortStudents(getAssignedStudents(), elements.studentSort.value);
-
-      elements.reportStudent.innerHTML = `<option value="">Select student</option>`;
-      sortedStudents.forEach(({ student, summary }) => {
-        const option = document.createElement("option");
-        option.value = student.id;
-        option.textContent = `${student.rollNo} - ${student.name} (${summary.percentage}%)`;
-        elements.reportStudent.appendChild(option);
-      });
-
-      if (previousValue && sortedStudents.some(({ student }) => String(student.id) === String(previousValue))) {
-        elements.reportStudent.value = previousValue;
-      }
-
-      renderStudentReport();
+    function resetStudentSearch() {
+      elements.studentSearch.value = "";
+      elements.studentSearchResults.innerHTML = "";
+      elements.studentReport.innerHTML = `<div class="empty-state">Search and choose a student to view the report.</div>`;
     }
 
-    function renderStudentReport() {
-      const studentId = Number(elements.reportStudent.value);
+    function renderStudentSearchResults() {
+      const query = elements.studentSearch.value.trim().toLowerCase();
+      const classStudents = getAssignedStudents().sort((a, b) => a.rollNo - b.rollNo);
+
+      if (!query) {
+        elements.studentSearchResults.innerHTML = "";
+        elements.studentReport.innerHTML = `<div class="empty-state">Search by roll number or name to view overall attendance performance.</div>`;
+        return;
+      }
+
+      const matches = classStudents.filter((student) => {
+        return String(student.rollNo).includes(query) || student.name.toLowerCase().includes(query);
+      }).slice(0, 8);
+
+      if (!matches.length) {
+        elements.studentSearchResults.innerHTML = `<div class="empty-state">No matching student found.</div>`;
+        return;
+      }
+
+      elements.studentSearchResults.innerHTML = matches.map((student) => {
+        const summary = getStudentAttendanceSummary(student.id);
+        return `
+          <button class="search-result-btn" type="button" data-student-id="${student.id}">
+            <span>Roll ${student.rollNo}</span>
+            <span>${escapeHtml(student.name)}</span>
+            <span class="badge neutral">${summary.percentage}%</span>
+          </button>
+        `;
+      }).join("");
+
+      elements.studentSearchResults.querySelectorAll(".search-result-btn").forEach((button) => {
+        button.addEventListener("click", () => selectStudentForReport(Number(button.dataset.studentId)));
+      });
+    }
+
+    function selectStudentForReport(studentId) {
+      const student = findAssignedStudentById(studentId);
+      if (!student) return;
+      elements.studentSearch.value = `${student.rollNo} - ${student.name}`;
+      elements.studentSearchResults.innerHTML = "";
+      renderStudentReport(studentId);
+    }
+
+    function renderStudentReport(studentId) {
+      studentId = Number(studentId);
 
       if (!studentId) {
-        elements.studentReport.innerHTML = `<div class="empty-state">Select a student to view the report.</div>`;
+        elements.studentReport.innerHTML = `<div class="empty-state">Search and choose a student to view the report.</div>`;
         return;
       }
 
@@ -2930,7 +2977,7 @@
       renderHolidayManager();
       renderClassStudentManager();
       renderDateReport();
-      renderStudentOptions(false);
+      resetStudentSearch();
       setActiveView("dashboardView");
     }
 
@@ -2957,8 +3004,7 @@
       elements.dateReportSort.addEventListener("change", renderDateReport);
       elements.monthReportMonth.addEventListener("change", handleParticularMonthFilterChange);
       elements.monthQuickFilter.addEventListener("change", applyRecentMonthFilter);
-      elements.studentSort.addEventListener("change", () => renderStudentOptions(true));
-      elements.reportStudent.addEventListener("change", renderStudentReport);
+      elements.studentSearch.addEventListener("input", renderStudentSearchResults);
     }
 
     async function init() {
