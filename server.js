@@ -117,6 +117,21 @@ function publicTeacher(teacher) {
   };
 }
 
+function getPasswordDisplay(teacher) {
+  if (teacher.password) return teacher.password;
+  if (teacher.passwordDisplay) return teacher.passwordDisplay;
+  if (teacher.passwordHash) return "Hidden until next successful login or admin reset";
+  if (teacher.role === "admin") return "Stored in Render environment";
+  return "Not available";
+}
+
+function teacherAccount(teacher) {
+  return {
+    ...publicTeacher(teacher),
+    passwordDisplay: getPasswordDisplay(teacher)
+  };
+}
+
 function demoTeacher(teacher, includePassword = false) {
   return {
     ...publicTeacher(teacher),
@@ -125,17 +140,9 @@ function demoTeacher(teacher, includePassword = false) {
 }
 
 function adminTeacherAccount(teacher) {
-  const passwordDisplay = teacher.password
-    ? teacher.password
-    : teacher.passwordHash
-      ? "Encrypted - use reset"
-      : teacher.role === "admin"
-        ? "Stored in Render environment"
-        : "Not available";
-
   return {
     ...publicTeacher(teacher),
-    passwordDisplay,
+    passwordDisplay: getPasswordDisplay(teacher),
     canResetPassword: teacher.role !== "admin"
   };
 }
@@ -204,6 +211,7 @@ function hashPassword(password, salt = crypto.randomBytes(16).toString("hex")) {
 
 function verifyPassword(password, teacher) {
   if (teacher.password) return teacher.password === password;
+  if (teacher.passwordDisplay) return teacher.passwordDisplay === password;
   if (!teacher.passwordHash || !teacher.passwordSalt) return false;
   const { hash } = hashPassword(password, teacher.passwordSalt);
   return crypto.timingSafeEqual(Buffer.from(hash, "hex"), Buffer.from(teacher.passwordHash, "hex"));
@@ -489,15 +497,32 @@ async function handleLogin(req, res) {
   const body = await readBody(req);
   const username = normalizeUsername(body.username);
   const password = String(body.password || "");
-  const teacher = await findTeacher(username);
+  let teacher = await findTeacher(username);
 
-  if (!teacher || !verifyPassword(password, teacher)) {
-    sendError(res, 401, "Wrong username or password.");
+  if (!teacher) {
+    sendError(res, 404, "Account not found. Create it again or ask the admin to check the username.");
     return;
   }
 
+  if (!verifyPassword(password, teacher)) {
+    sendError(res, 401, "Wrong password. Check spaces, capital letters, or ask admin to reset it.");
+    return;
+  }
+
+  if (!isAdmin(teacher) && !teacher.password && !teacher.passwordDisplay) {
+    const db = await readDb();
+    upsertTeacherOverride(db, teacher, {
+      password,
+      passwordSalt: null,
+      passwordHash: null,
+      passwordRecoveredAt: new Date().toISOString()
+    });
+    await writeDb(db);
+    teacher = await findTeacher(username);
+  }
+
   sendJson(res, 200, {
-    teacher: publicTeacher(teacher),
+    teacher: teacherAccount(teacher),
     sessionToken: createSessionToken(teacher)
   });
 }
@@ -542,11 +567,10 @@ async function handleAdminResetTeacherPassword(req, res, username) {
   }
 
   const db = await readDb();
-  const { salt, hash } = hashPassword(newPassword);
   upsertTeacherOverride(db, target, {
-    password: null,
-    passwordSalt: salt,
-    passwordHash: hash,
+    password: newPassword,
+    passwordSalt: null,
+    passwordHash: null,
     passwordResetBy: actor.username,
     passwordResetAt: new Date().toISOString()
   });
@@ -588,7 +612,6 @@ async function handleRegister(req, res) {
   }
 
   const db = await readDb();
-  const { salt, hash } = hashPassword(password);
   const teacher = {
     username,
     teacherName,
@@ -596,8 +619,7 @@ async function handleRegister(req, res) {
     subject,
     assignedClass,
     role: "teacher",
-    passwordSalt: salt,
-    passwordHash: hash,
+    password,
     createdAt: new Date().toISOString()
   };
 
@@ -608,7 +630,7 @@ async function handleRegister(req, res) {
   }
   await writeDb(db);
   sendJson(res, 201, {
-    teacher: publicTeacher(teacher),
+    teacher: teacherAccount(teacher),
     sessionToken: createSessionToken(teacher),
     teachers: (await getAllTeachers()).map(publicTeacher)
   });
@@ -627,7 +649,7 @@ async function handleTeacher(req, res, username) {
     sendError(res, 404, "Teacher account not found.");
     return;
   }
-  sendJson(res, 200, { teacher: publicTeacher(teacher) });
+  sendJson(res, 200, { teacher: teacherAccount(teacher) });
 }
 
 async function handleAssignTeacherClass(req, res, username) {
@@ -677,7 +699,7 @@ async function handleAssignTeacherClass(req, res, username) {
   await writeDb(db);
   const updatedTeacher = await findTeacher(username);
   sendJson(res, 200, {
-    teacher: publicTeacher(updatedTeacher),
+    teacher: teacherAccount(updatedTeacher),
     teachers: (await getAllTeachers()).map(publicTeacher),
     classes: db.classes
   });
@@ -732,7 +754,7 @@ async function handleAddClass(req, res) {
   const updatedTeacher = await findTeacher(teacher.username);
   sendJson(res, 200, {
     classes: db.classes,
-    teacher: publicTeacher(updatedTeacher),
+    teacher: teacherAccount(updatedTeacher),
     teachers: (await getAllTeachers()).map(publicTeacher)
   });
 }
@@ -1162,7 +1184,7 @@ async function handleDeleteClass(req, res, classNameParam, username) {
     classes: db.classes,
     students: db.students,
     attendanceRecords: db.attendanceRecords,
-    teacher: publicTeacher(updatedActor),
+    teacher: teacherAccount(updatedActor),
     teachers: (await getAllTeachers()).map(publicTeacher)
   });
 }
