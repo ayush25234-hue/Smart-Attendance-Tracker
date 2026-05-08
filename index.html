@@ -926,7 +926,7 @@
       }
 
       .nav-list {
-        grid-template-columns: repeat(6, minmax(132px, 1fr));
+        grid-template-columns: repeat(7, minmax(132px, 1fr));
         overflow-x: auto;
         padding-bottom: 4px;
       }
@@ -1015,7 +1015,7 @@
           <p>Subject teachers mark only absent students. Everyone else is counted present automatically for the selected class, subject, and date.</p>
         </div>
         <div>
-          <h3>Demo Credentials</h3>
+          <h3>Sample Teacher Accounts</h3>
           <div class="demo-list" id="demoCredentials"></div>
         </div>
       </div>
@@ -1023,7 +1023,7 @@
       <div class="auth-card">
         <form id="loginForm">
           <h2>Teacher Login</h2>
-          <p class="subtext">Use a sample account or create your own teacher account.</p>
+          <p class="subtext">Login with your teacher or admin account.</p>
           <div class="field">
             <label for="username">Username</label>
             <input id="username" type="text" autocomplete="username" required>
@@ -1041,7 +1041,7 @@
 
         <form class="hidden" id="registerForm">
           <h2>Create Teacher Account</h2>
-          <p class="subtext">Choose your class, subject, username, and password. The account is saved on this browser.</p>
+          <p class="subtext">Choose your class, subject, username, and password. The account is saved on the server.</p>
           <div class="field">
             <label for="registerTeacherName">Teacher Name</label>
             <input id="registerTeacherName" type="text" autocomplete="name" required>
@@ -1095,6 +1095,7 @@
         <button class="nav-btn" data-view="classStudentView" type="button">Classes & Students</button>
         <button class="nav-btn" data-view="dateReportView" type="button">Date Report</button>
         <button class="nav-btn" data-view="studentReportView" type="button">Student Report</button>
+        <button class="nav-btn hidden" data-view="adminView" id="adminNavBtn" type="button">Admin</button>
       </nav>
 
       <button class="danger-btn" id="logoutBtn" type="button">Logout</button>
@@ -1390,6 +1391,43 @@
           </div>
         </section>
       </section>
+
+      <section class="view hidden" id="adminView">
+        <section class="panel">
+          <div class="panel-header">
+            <div>
+              <h2 class="panel-title">Admin Accounts</h2>
+              <p class="panel-kicker">View teacher usernames and manage passwords</p>
+            </div>
+          </div>
+          <div class="panel-body">
+            <div id="adminAccounts"></div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-header">
+            <div>
+              <h2 class="panel-title">Reset Teacher Password</h2>
+              <p class="panel-kicker">Encrypted passwords cannot be read back, but admin can set a new one</p>
+            </div>
+          </div>
+          <div class="panel-body">
+            <div class="controls-row">
+              <div class="field">
+                <label for="resetTeacherSelect">Teacher</label>
+                <select id="resetTeacherSelect"></select>
+              </div>
+              <div class="field">
+                <label for="resetTeacherPassword">New Password</label>
+                <input id="resetTeacherPassword" type="text" minlength="4" placeholder="Enter new password">
+              </div>
+              <button class="primary-btn" id="resetTeacherPasswordBtn" type="button">Reset Password</button>
+            </div>
+            <p class="notice" id="adminNotice"></p>
+          </div>
+        </section>
+      </section>
     </main>
   </div>
 
@@ -1491,6 +1529,7 @@
       showLoginBtn: document.getElementById("showLoginBtn"),
       classSuggestions: document.getElementById("classSuggestions"),
       demoCredentials: document.getElementById("demoCredentials"),
+      adminNavBtn: document.getElementById("adminNavBtn"),
       logoutBtn: document.getElementById("logoutBtn"),
       navButtons: [...document.querySelectorAll(".nav-btn")],
       views: [...document.querySelectorAll(".view")],
@@ -1555,6 +1594,11 @@
       studentSearch: document.getElementById("studentSearch"),
       studentSearchResults: document.getElementById("studentSearchResults"),
       studentReport: document.getElementById("studentReport"),
+      adminAccounts: document.getElementById("adminAccounts"),
+      resetTeacherSelect: document.getElementById("resetTeacherSelect"),
+      resetTeacherPassword: document.getElementById("resetTeacherPassword"),
+      resetTeacherPasswordBtn: document.getElementById("resetTeacherPasswordBtn"),
+      adminNotice: document.getElementById("adminNotice"),
       toast: document.getElementById("toast")
     };
 
@@ -1566,7 +1610,8 @@
       classes: [...new Set(students.map((student) => student.className))].sort(),
       students: [...students],
       attendanceRecords: {},
-      holidayRecords: {}
+      holidayRecords: {},
+      adminAccounts: []
     };
 
     async function apiRequest(path, options = {}) {
@@ -1604,7 +1649,8 @@
         classes: payload.classes || [],
         students: payload.students || [],
         attendanceRecords: payload.attendanceRecords || {},
-        holidayRecords: payload.holidayRecords || {}
+        holidayRecords: payload.holidayRecords || {},
+        adminAccounts: appData.adminAccounts || []
       };
     }
 
@@ -1807,7 +1853,7 @@
             <strong>${escapeHtml(teacher.teacherName)}</strong><br>
             <span>${escapeHtml(teacher.subject)} - ${escapeHtml(teacher.assignedClass)}</span>
           </div>
-          <code>${escapeHtml(teacher.username)} / ${escapeHtml(teacher.password)}</code>
+          <code>${escapeHtml(teacher.username)}</code>
         </div>
       `).join("");
     }
@@ -1852,6 +1898,7 @@
       elements.appShell.classList.add("hidden");
       elements.loginForm.classList.remove("hidden");
       elements.registerForm.classList.add("hidden");
+      elements.adminNavBtn.classList.add("hidden");
       elements.loginForm.reset();
       elements.registerForm.reset();
       elements.loginError.textContent = "";
@@ -1984,6 +2031,11 @@
     }
 
     function setActiveView(viewId) {
+      if (viewId === "adminView" && !isAdminUser()) {
+        showToast("Admin login required.");
+        viewId = "dashboardView";
+      }
+
       elements.views.forEach((view) => {
         view.classList.toggle("hidden", view.id !== viewId);
       });
@@ -1998,7 +2050,8 @@
         holidayView: ["Holiday Manager", "Manage dates that should not count in reports."],
         classStudentView: ["Classes & Students", "Create classes and manage student rosters."],
         dateReportView: ["Date-wise Report", "Review students and attendance percentages."],
-        studentReportView: ["Student-wise Report", "Check each student's working-day attendance."]
+        studentReportView: ["Student-wise Report", "Check each student's working-day attendance."],
+        adminView: ["Admin", "Teacher accounts and password management."]
       };
       const [title, subtitle] = titles[viewId] || titles.dashboardView;
       elements.pageTitle.textContent = title;
@@ -2010,6 +2063,7 @@
       if (viewId === "classStudentView") renderClassStudentManager(true);
       if (viewId === "dateReportView") renderDateReport();
       if (viewId === "studentReportView") renderStudentSearchResults();
+      if (viewId === "adminView") renderAdminPanel();
     }
 
     function getStudentAttendanceSummary(studentId) {
@@ -3087,6 +3141,107 @@
       `;
     }
 
+    async function loadAdminAccounts() {
+      const payload = await apiRequest("/api/admin/teachers");
+      appData.adminAccounts = payload.accounts || [];
+      return appData.adminAccounts;
+    }
+
+    function renderAdminAccountRows(accounts) {
+      if (!accounts.length) {
+        elements.adminAccounts.innerHTML = `<div class="empty-state">No teacher accounts found.</div>`;
+        return;
+      }
+
+      elements.adminAccounts.innerHTML = `
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Teacher</th>
+                <th>Username</th>
+                <th>Password</th>
+                <th>Subject</th>
+                <th>Class</th>
+                <th>Role</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${accounts.map((account) => `
+                <tr>
+                  <td class="student-name">${escapeHtml(account.teacherName)}</td>
+                  <td><code>${escapeHtml(account.username)}</code></td>
+                  <td><code>${escapeHtml(account.passwordDisplay)}</code></td>
+                  <td>${escapeHtml(account.subject || "-")}</td>
+                  <td>${escapeHtml(account.assignedClass || "-")}</td>
+                  <td><span class="badge neutral">${escapeHtml(account.role)}</span></td>
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+        </div>
+      `;
+    }
+
+    function renderPasswordResetSelect(accounts) {
+      const resettableAccounts = accounts.filter((account) => account.canResetPassword);
+      elements.resetTeacherSelect.innerHTML = resettableAccounts.map((account) => `
+        <option value="${escapeHtml(account.username)}">${escapeHtml(account.teacherName)} (${escapeHtml(account.username)})</option>
+      `).join("");
+      const disabled = resettableAccounts.length === 0;
+      elements.resetTeacherSelect.disabled = disabled;
+      elements.resetTeacherPassword.disabled = disabled;
+      elements.resetTeacherPasswordBtn.disabled = disabled;
+    }
+
+    async function renderAdminPanel() {
+      if (!isAdminUser()) return;
+
+      elements.adminAccounts.innerHTML = `<div class="empty-state">Loading teacher accounts...</div>`;
+      setNotice(elements.adminNotice, "", "");
+
+      try {
+        const accounts = await loadAdminAccounts();
+        renderAdminAccountRows(accounts);
+        renderPasswordResetSelect(accounts);
+      } catch (error) {
+        elements.adminAccounts.innerHTML = `<div class="empty-state">${escapeHtml(error.message || "Admin accounts could not be loaded.")}</div>`;
+      }
+    }
+
+    async function resetTeacherPassword() {
+      if (!isAdminUser()) {
+        showToast("Admin login required.");
+        return;
+      }
+
+      const username = elements.resetTeacherSelect.value;
+      const newPassword = elements.resetTeacherPassword.value.trim();
+      if (!username || !newPassword) {
+        setNotice(elements.adminNotice, "Choose a teacher and enter a new password.", "danger");
+        return;
+      }
+
+      if (newPassword.length < 4) {
+        setNotice(elements.adminNotice, "Password must be at least 4 characters.", "danger");
+        return;
+      }
+
+      try {
+        const payload = await apiRequest(`/api/admin/teachers/${encodeURIComponent(username)}/password`, {
+          method: "PATCH",
+          body: JSON.stringify({ newPassword })
+        });
+        appData.adminAccounts = payload.accounts || [];
+        elements.resetTeacherPassword.value = "";
+        renderAdminAccountRows(appData.adminAccounts);
+        renderPasswordResetSelect(appData.adminAccounts);
+        setNotice(elements.adminNotice, `Password reset for ${username}. Share the new password with that teacher.`, "success");
+      } catch (error) {
+        setNotice(elements.adminNotice, error.message || "Password could not be reset.", "danger");
+      }
+    }
+
     function initializeTeacherView() {
       const today = getTodayValue();
       elements.markDate.value = elements.markDate.value || today;
@@ -3098,6 +3253,7 @@
       elements.whatsappMessage.value = "";
       elements.copyMessage.disabled = true;
       elements.copyStatus.textContent = "";
+      elements.adminNavBtn.classList.toggle("hidden", !isAdminUser());
       renderTeacherScopeText();
       renderDashboard();
       renderMarkAttendance();
@@ -3134,6 +3290,7 @@
       elements.monthReportMonth.addEventListener("change", handleParticularMonthFilterChange);
       elements.monthQuickFilter.addEventListener("change", applyRecentMonthFilter);
       elements.studentSearch.addEventListener("input", renderStudentSearchResults);
+      elements.resetTeacherPasswordBtn.addEventListener("click", resetTeacherPassword);
     }
 
     async function init() {

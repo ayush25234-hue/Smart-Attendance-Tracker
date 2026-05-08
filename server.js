@@ -110,6 +110,29 @@ function publicTeacher(teacher) {
   };
 }
 
+function demoTeacher(teacher, includePassword = false) {
+  return {
+    ...publicTeacher(teacher),
+    ...(includePassword ? { password: teacher.password } : {})
+  };
+}
+
+function adminTeacherAccount(teacher) {
+  const passwordDisplay = teacher.password
+    ? teacher.password
+    : teacher.passwordHash
+      ? "Encrypted - use reset"
+      : teacher.role === "admin"
+        ? "Stored in Render environment"
+        : "Not available";
+
+  return {
+    ...publicTeacher(teacher),
+    passwordDisplay,
+    canResetPassword: teacher.role !== "admin"
+  };
+}
+
 function base64UrlEncode(value) {
   return Buffer.from(value).toString("base64url");
 }
@@ -354,10 +377,7 @@ async function readBody(req) {
 async function handleBootstrap(req, res) {
   const db = await readDb();
   const actor = await requireAuth(req);
-  const demoTeachers = sampleTeachers.map((teacher) => ({
-    ...publicTeacher(teacher),
-    password: teacher.password
-  }));
+  const demoTeachers = sampleTeachers.map((teacher) => demoTeacher(teacher, isAdmin(actor)));
 
   if (!actor) {
     sendJson(res, 200, {
@@ -395,6 +415,61 @@ async function handleLogin(req, res) {
   sendJson(res, 200, {
     teacher: publicTeacher(teacher),
     sessionToken: createSessionToken(teacher)
+  });
+}
+
+async function handleAdminTeachers(req, res) {
+  const actor = await requireActor(req, res);
+  if (!actor) return;
+  if (!isAdmin(actor)) {
+    sendError(res, 403, "Only the admin can view teacher credentials.");
+    return;
+  }
+
+  sendJson(res, 200, {
+    accounts: (await getAllTeachers()).map(adminTeacherAccount)
+  });
+}
+
+async function handleAdminResetTeacherPassword(req, res, username) {
+  const actor = await requireActor(req, res);
+  if (!actor) return;
+  if (!isAdmin(actor)) {
+    sendError(res, 403, "Only the admin can reset teacher passwords.");
+    return;
+  }
+
+  const target = await findTeacher(username);
+  if (!target) {
+    sendError(res, 404, "Teacher account not found.");
+    return;
+  }
+
+  if (isAdmin(target)) {
+    sendError(res, 403, "Admin password must be changed in Render environment variables.");
+    return;
+  }
+
+  const body = await readBody(req);
+  const newPassword = String(body.newPassword || "");
+  if (newPassword.length < 4) {
+    sendError(res, 400, "Password must be at least 4 characters.");
+    return;
+  }
+
+  const db = await readDb();
+  const { salt, hash } = hashPassword(newPassword);
+  upsertTeacherOverride(db, target, {
+    password: null,
+    passwordSalt: salt,
+    passwordHash: hash,
+    passwordResetBy: actor.username,
+    passwordResetAt: new Date().toISOString()
+  });
+
+  await writeDb(db);
+  sendJson(res, 200, {
+    accounts: (await getAllTeachers()).map(adminTeacherAccount)
   });
 }
 
@@ -1002,6 +1077,17 @@ async function router(req, res) {
 
     if (req.method === "POST" && pathname === "/api/register") {
       await handleRegister(req, res);
+      return;
+    }
+
+    if (req.method === "GET" && pathname === "/api/admin/teachers") {
+      await handleAdminTeachers(req, res);
+      return;
+    }
+
+    if (req.method === "PATCH" && pathname.startsWith("/api/admin/teachers/") && pathname.endsWith("/password")) {
+      const username = pathname.replace("/api/admin/teachers/", "").replace("/password", "");
+      await handleAdminResetTeacherPassword(req, res, username);
       return;
     }
 
