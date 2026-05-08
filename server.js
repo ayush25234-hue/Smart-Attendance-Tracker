@@ -4,6 +4,7 @@ const path = require("path");
 const crypto = require("crypto");
 
 const PORT = Number(process.env.PORT || 3000);
+const HOST = process.env.HOST || "0.0.0.0";
 const ROOT_DIR = __dirname;
 const DATA_DIR = path.join(ROOT_DIR, "data");
 const DB_PATH = path.join(DATA_DIR, "db.json");
@@ -716,7 +717,7 @@ async function router(req, res) {
 }
 
 ensureDb().then(() => {
-  http.createServer(router).listen(PORT, () => {
-    console.log(`Smart Attendance Tracker running at http://localhost:${PORT}`);
+  http.createServer(router).listen(PORT, HOST, () => {
+    console.log(`Smart Attendance Tracker running at http://${HOST}:${PORT}`);
   });
 });
