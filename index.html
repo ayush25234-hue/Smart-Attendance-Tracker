@@ -136,6 +136,13 @@
       gap: 10px;
     }
 
+    .demo-note {
+      margin: 6px 0 14px;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.45;
+    }
+
     .demo-item {
       display: grid;
       grid-template-columns: minmax(0, 1fr) auto;
@@ -1016,6 +1023,7 @@
         </div>
         <div>
           <h3>Sample Teacher Accounts</h3>
+          <p class="demo-note">Use these sample accounts to understand the attendance flow before creating real data.</p>
           <div class="demo-list" id="demoCredentials"></div>
         </div>
       </div>
@@ -1847,15 +1855,19 @@
 
     function renderDemoCredentials() {
       const demoTeachers = appData.demoTeachers.length ? appData.demoTeachers : teachers;
-      elements.demoCredentials.innerHTML = demoTeachers.map((teacher) => `
-        <div class="demo-item">
-          <div>
-            <strong>${escapeHtml(teacher.teacherName)}</strong><br>
-            <span>${escapeHtml(teacher.subject)} - ${escapeHtml(teacher.assignedClass)}</span>
+      elements.demoCredentials.innerHTML = demoTeachers.map((teacher) => {
+        const sampleTeacher = teachers.find((item) => item.username === teacher.username);
+        const password = teacher.password || sampleTeacher?.password || "";
+        return `
+          <div class="demo-item">
+            <div>
+              <strong>${escapeHtml(teacher.teacherName)}</strong><br>
+              <span>${escapeHtml(teacher.subject)} - ${escapeHtml(teacher.assignedClass)}</span>
+            </div>
+            <code>${escapeHtml(teacher.username)}${password ? ` / ${escapeHtml(password)}` : ""}</code>
           </div>
-          <code>${escapeHtml(teacher.username)}</code>
-        </div>
-      `).join("");
+        `;
+      }).join("");
     }
 
     function renderClassSuggestions() {
