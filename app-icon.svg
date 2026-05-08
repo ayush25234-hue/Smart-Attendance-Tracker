@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">Smart Attendance Tracker</title>
+  <desc id="desc">Blue app icon with SA initials and attendance check mark.</desc>
+  <rect width="512" height="512" rx="96" fill="#2563eb"/>
+  <path d="M104 356h304v36H104z" fill="#dbeafe" opacity=".9"/>
+  <path d="M130 150h252c17.7 0 32 14.3 32 32v158H98V182c0-17.7 14.3-32 32-32z" fill="#ffffff"/>
+  <path d="M148 214h120v34H148zM148 278h92v34h-92z" fill="#93c5fd"/>
+  <path d="M302 279l42 42 78-94 31 26-106 128-77-77z" fill="#16a34a"/>
+  <text x="146" y="124" fill="#ffffff" font-family="Segoe UI, Arial, sans-serif" font-size="76" font-weight="900">SA</text>
+</svg>

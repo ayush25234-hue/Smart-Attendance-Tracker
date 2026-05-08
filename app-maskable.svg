@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">Smart Attendance Tracker Maskable Icon</title>
+  <desc id="desc">Maskable blue app icon with centered SA initials.</desc>
+  <rect width="512" height="512" fill="#2563eb"/>
+  <circle cx="256" cy="256" r="184" fill="#ffffff" opacity=".14"/>
+  <rect x="116" y="132" width="280" height="248" rx="46" fill="#ffffff"/>
+  <path d="M155 234h114v32H155zM155 294h86v32h-86z" fill="#93c5fd"/>
+  <path d="M292 292l36 36 72-87 30 25-101 122-67-68z" fill="#16a34a"/>
+  <text x="150" y="116" fill="#ffffff" font-family="Segoe UI, Arial, sans-serif" font-size="72" font-weight="900">SA</text>
+</svg>

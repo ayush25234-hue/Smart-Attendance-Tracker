@@ -3,6 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#2563eb">
+  <meta name="application-name" content="Smart Attendance">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Smart Attendance">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="/app-icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/app-maskable.svg">
   <title>Smart Attendance Tracker</title>
   <style>
     :root {
@@ -398,6 +406,11 @@
       border-color: #bfcee3;
       background: #edf4ff;
       color: #1d4ed8;
+    }
+
+    .sidebar-actions {
+      display: grid;
+      gap: 10px;
     }
 
     .main {
@@ -1464,7 +1477,10 @@
         <button class="nav-btn hidden" data-view="adminView" id="adminNavBtn" type="button">Admin</button>
       </nav>
 
-      <button class="danger-btn" id="logoutBtn" type="button">Logout</button>
+      <div class="sidebar-actions">
+        <button class="secondary-btn hidden" id="installAppBtn" type="button">Install App</button>
+        <button class="danger-btn" id="logoutBtn" type="button">Logout</button>
+      </div>
     </aside>
 
     <main class="main">
@@ -1928,6 +1944,7 @@
       classSuggestions: document.getElementById("classSuggestions"),
       demoCredentials: document.getElementById("demoCredentials"),
       adminNavBtn: document.getElementById("adminNavBtn"),
+      installAppBtn: document.getElementById("installAppBtn"),
       logoutBtn: document.getElementById("logoutBtn"),
       navButtons: [...document.querySelectorAll(".nav-btn")],
       views: [...document.querySelectorAll(".view")],
@@ -2013,6 +2030,7 @@
     let currentTeacher = null;
     let activeDateReportFilter = "date";
     let editingStudentId = null;
+    let deferredInstallPrompt = null;
     let appData = {
       teachers: [...teachers],
       demoTeachers: [...teachers],
@@ -2370,6 +2388,35 @@
       } else {
         openMobileMenu();
       }
+    }
+
+    function isStandaloneApp() {
+      return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+    }
+
+    function updateInstallButton() {
+      elements.installAppBtn.classList.toggle("hidden", !deferredInstallPrompt || isStandaloneApp());
+    }
+
+    async function installApp() {
+      if (!deferredInstallPrompt) {
+        showToast("Use your browser menu to install this app.");
+        return;
+      }
+
+      deferredInstallPrompt.prompt();
+      const result = await deferredInstallPrompt.userChoice;
+      deferredInstallPrompt = null;
+      updateInstallButton();
+      if (result.outcome === "accepted") showToast("App install started.");
+    }
+
+    function registerServiceWorker() {
+      if (!("serviceWorker" in navigator) || window.location.protocol === "file:") return;
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("/service-worker.js")
+          .catch((error) => console.warn("Service worker registration failed:", error));
+      });
     }
 
     function getPasswordDisplayText() {
@@ -3989,6 +4036,7 @@
       elements.showRegisterBtn.addEventListener("click", showRegister);
       elements.showLoginBtn.addEventListener("click", showLoginFormOnly);
       elements.logoutBtn.addEventListener("click", logout);
+      elements.installAppBtn.addEventListener("click", installApp);
       elements.mobileMenuBtn.addEventListener("click", toggleMobileMenu);
       elements.mobileNavBackdrop.addEventListener("click", closeMobileMenu);
       elements.accountMenuBtn.addEventListener("click", (event) => {
@@ -4034,6 +4082,16 @@
           closeAccountPopover();
         }
       });
+      window.addEventListener("beforeinstallprompt", (event) => {
+        event.preventDefault();
+        deferredInstallPrompt = event;
+        updateInstallButton();
+      });
+      window.addEventListener("appinstalled", () => {
+        deferredInstallPrompt = null;
+        updateInstallButton();
+        showToast("Smart Attendance installed.");
+      });
     }
 
     async function init() {
@@ -4053,6 +4111,7 @@
     }
 
     init();
+    registerServiceWorker();
   </script>
 </body>
 </html>
