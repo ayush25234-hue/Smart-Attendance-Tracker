@@ -15,7 +15,7 @@ const DB_PATH = path.join(DATA_DIR, "db.json");
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET,POST,PATCH,DELETE,OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type"
+  "Access-Control-Allow-Headers": "Content-Type, Authorization"
 };
 
 const sampleTeachers = [
@@ -23,6 +23,7 @@ const sampleTeachers = [
     username: "mathsir",
     password: "math123",
     teacherName: "Ramesh Sharma",
+    collegeName: "Smart Attendance Demo College",
     subject: "Mathematics",
     assignedClass: "10-A"
   },
@@ -30,6 +31,7 @@ const sampleTeachers = [
     username: "sciencemam",
     password: "science123",
     teacherName: "Anita Verma",
+    collegeName: "Smart Attendance Demo College",
     subject: "Science",
     assignedClass: "10-B"
   },
@@ -37,6 +39,7 @@ const sampleTeachers = [
     username: "englishsir",
     password: "english123",
     teacherName: "Farhan Ali",
+    collegeName: "Smart Attendance Demo College",
     subject: "English",
     assignedClass: "9-A"
   },
@@ -44,6 +47,7 @@ const sampleTeachers = [
     username: "historymam",
     password: "history123",
     teacherName: "Meera Nair",
+    collegeName: "Smart Attendance Demo College",
     subject: "Social Science",
     assignedClass: "8-B"
   }
@@ -104,6 +108,7 @@ function publicTeacher(teacher) {
   return {
     username: teacher.username,
     teacherName: teacher.teacherName,
+    collegeName: teacher.collegeName || "",
     subject: teacher.subject,
     assignedClass: teacher.assignedClass,
     role: teacher.role || "teacher"
@@ -307,6 +312,7 @@ function upsertTeacherOverride(db, teacher, updates) {
   const base = {
     username: teacher.username,
     teacherName: teacher.teacherName,
+    collegeName: teacher.collegeName || "",
     subject: teacher.subject,
     assignedClass: teacher.assignedClass,
     role: teacher.role || "teacher"
@@ -479,12 +485,13 @@ async function handleAdminResetTeacherPassword(req, res, username) {
 async function handleRegister(req, res) {
   const body = await readBody(req);
   const teacherName = String(body.teacherName || "").trim();
+  const collegeName = String(body.collegeName || "").trim();
   const subject = String(body.subject || "").trim();
   const assignedClass = normalizeClassName(body.assignedClass);
   const username = normalizeUsername(body.username);
   const password = String(body.password || "");
 
-  if (!teacherName || !subject || !assignedClass || !username || !password) {
+  if (!teacherName || !collegeName || !subject || !assignedClass || !username || !password) {
     sendError(res, 400, "Please fill every field.");
     return;
   }
@@ -510,6 +517,7 @@ async function handleRegister(req, res) {
   const teacher = {
     username,
     teacherName,
+    collegeName,
     subject,
     assignedClass,
     role: "teacher",
@@ -574,6 +582,7 @@ async function handleAssignTeacherClass(req, res, username) {
   const override = {
     username: teacher.username,
     teacherName: teacher.teacherName,
+    collegeName: teacher.collegeName || "",
     subject: teacher.subject,
     assignedClass,
     updatedAt: new Date().toISOString()
@@ -636,6 +645,7 @@ async function handleAddClass(req, res) {
       db.teachers.push({
         username: teacher.username,
         teacherName: teacher.teacherName,
+        collegeName: teacher.collegeName || "",
         subject: teacher.subject,
         assignedClass: className,
         updatedAt: new Date().toISOString()
@@ -779,6 +789,58 @@ async function handleImportStudents(req, res) {
   db.classes.sort();
   await writeDb(db);
   sendJson(res, 200, { imported, skipped, students: db.students, classes: db.classes });
+}
+
+async function handleUpdateStudent(req, res, studentId, username) {
+  const actor = await requireActor(req, res);
+  if (!actor) return;
+  if (!canActAs(actor, username)) {
+    sendError(res, 403, "You can edit students only from your own account.");
+    return;
+  }
+
+  const body = await readBody(req);
+  const db = await readDb();
+  const studentIndex = db.students.findIndex((item) => Number(item.id) === Number(studentId));
+  if (studentIndex < 0) {
+    sendError(res, 404, "Student not found.");
+    return;
+  }
+
+  const existingStudent = db.students[studentIndex];
+  if (!canManageClass(actor, existingStudent.className, db)) {
+    sendError(res, 403, "Only the assigned class teacher or admin can edit this student.");
+    return;
+  }
+
+  const studentInput = normalizeStudentInput({ ...body, className: existingStudent.className }, existingStudent.className);
+  if (!studentInput.rollNo || !studentInput.name) {
+    sendError(res, 400, "Roll number and student name are required.");
+    return;
+  }
+
+  const duplicate = db.students.some((student) => {
+    return Number(student.id) !== Number(studentId) &&
+      student.className === existingStudent.className &&
+      Number(student.rollNo) === studentInput.rollNo;
+  });
+
+  if (duplicate) {
+    sendError(res, 409, "A student with this roll number already exists in this class.");
+    return;
+  }
+
+  db.students[studentIndex] = {
+    ...existingStudent,
+    rollNo: studentInput.rollNo,
+    name: studentInput.name,
+    fatherName: studentInput.fatherName,
+    updatedBy: actor.username,
+    updatedAt: new Date().toISOString()
+  };
+
+  await writeDb(db);
+  sendJson(res, 200, { student: db.students[studentIndex], students: db.students });
 }
 
 async function handleSaveAttendance(req, res) {
@@ -1121,6 +1183,12 @@ async function router(req, res) {
 
     if (req.method === "POST" && pathname === "/api/students") {
       await handleAddStudent(req, res);
+      return;
+    }
+
+    if (req.method === "PATCH" && pathname.startsWith("/api/students/")) {
+      const studentId = pathname.replace("/api/students/", "");
+      await handleUpdateStudent(req, res, studentId, url.searchParams.get("username"));
       return;
     }
 

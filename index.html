@@ -654,6 +654,46 @@
       font-weight: 800;
     }
 
+    .row-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .row-actions button {
+      min-height: 34px;
+      padding: 7px 10px;
+    }
+
+    .student-edit-row td {
+      background: #f8fbff;
+    }
+
+    .inline-edit-grid {
+      display: grid;
+      grid-template-columns: 100px minmax(160px, 1fr) minmax(160px, 1fr) auto auto;
+      gap: 10px;
+      align-items: end;
+    }
+
+    .inline-edit-grid .field {
+      margin-bottom: 0;
+    }
+
+    .student-roster-table {
+      min-width: 0;
+      table-layout: fixed;
+    }
+
+    .student-roster-table .roll-cell {
+      width: 86px;
+    }
+
+    .student-roster-table th:last-child,
+    .student-roster-table td:last-child {
+      width: 178px;
+    }
+
     .table-wrap {
       width: 100%;
       overflow-x: auto;
@@ -1043,6 +1083,7 @@
       .controls-row.holiday,
       .controls-row.four,
       .controls-row.student-entry,
+      .inline-edit-grid,
       .month-percentage-row,
       .report-grid {
         grid-template-columns: 1fr;
@@ -1202,6 +1243,29 @@
       .mark-attendance-table .badge {
         min-width: 54px;
       }
+
+      .student-roster-table th,
+      .student-roster-table td {
+        padding: 10px 7px;
+      }
+
+      .student-roster-table .roll-cell {
+        width: 62px;
+      }
+
+      .student-roster-table th:last-child,
+      .student-roster-table td:last-child {
+        width: 106px;
+      }
+
+      .student-roster-table .row-actions {
+        flex-direction: column;
+        gap: 6px;
+      }
+
+      .student-roster-table .row-actions button {
+        width: 100%;
+      }
     }
   </style>
 </head>
@@ -1246,6 +1310,10 @@
           <div class="field">
             <label for="registerTeacherName">Teacher Name</label>
             <input id="registerTeacherName" type="text" autocomplete="name" required>
+          </div>
+          <div class="field">
+            <label for="registerCollegeName">College Name</label>
+            <input id="registerCollegeName" type="text" placeholder="Springfield College" required>
           </div>
           <div class="field">
             <label for="registerSubject">Subject</label>
@@ -1402,17 +1470,16 @@
         <section class="panel">
           <div class="panel-header">
             <div>
-              <h2 class="panel-title">WhatsApp Message</h2>
+              <h2 class="panel-title">Absent Students Report Image</h2>
               <p class="panel-kicker">Generated after attendance is saved</p>
             </div>
           </div>
           <div class="panel-body">
-            <textarea id="whatsappMessage" readonly placeholder="Save attendance to generate the WhatsApp-ready message."></textarea>
+            <div class="empty-state" id="reportImageEmpty">Save attendance to generate the absent-students image.</div>
             <div class="message-image-wrap hidden" id="messageImageWrap">
               <canvas id="whatsappImageCanvas" width="960" height="520"></canvas>
             </div>
             <div class="section-actions">
-              <button class="secondary-btn" id="copyMessage" type="button" disabled>Copy Message</button>
               <button class="secondary-btn" id="copyImage" type="button" disabled>Copy Image</button>
               <button class="primary-btn" id="downloadImage" type="button" disabled>Save Image</button>
             </div>
@@ -1661,6 +1728,7 @@
         username: "mathsir",
         password: "math123",
         teacherName: "Ramesh Sharma",
+        collegeName: "Smart Attendance Demo College",
         subject: "Mathematics",
         assignedClass: "10-A"
       },
@@ -1668,6 +1736,7 @@
         username: "sciencemam",
         password: "science123",
         teacherName: "Anita Verma",
+        collegeName: "Smart Attendance Demo College",
         subject: "Science",
         assignedClass: "10-B"
       },
@@ -1675,6 +1744,7 @@
         username: "englishsir",
         password: "english123",
         teacherName: "Farhan Ali",
+        collegeName: "Smart Attendance Demo College",
         subject: "English",
         assignedClass: "9-A"
       },
@@ -1682,6 +1752,7 @@
         username: "historymam",
         password: "history123",
         teacherName: "Meera Nair",
+        collegeName: "Smart Attendance Demo College",
         subject: "Social Science",
         assignedClass: "8-B"
       }
@@ -1739,6 +1810,7 @@
       password: document.getElementById("password"),
       loginError: document.getElementById("loginError"),
       registerTeacherName: document.getElementById("registerTeacherName"),
+      registerCollegeName: document.getElementById("registerCollegeName"),
       registerSubject: document.getElementById("registerSubject"),
       registerClass: document.getElementById("registerClass"),
       registerUsername: document.getElementById("registerUsername"),
@@ -1778,10 +1850,9 @@
       saveAttendance: document.getElementById("saveAttendance"),
       deleteAttendance: document.getElementById("deleteAttendance"),
       saveNote: document.getElementById("saveNote"),
-      whatsappMessage: document.getElementById("whatsappMessage"),
+      reportImageEmpty: document.getElementById("reportImageEmpty"),
       messageImageWrap: document.getElementById("messageImageWrap"),
       whatsappImageCanvas: document.getElementById("whatsappImageCanvas"),
-      copyMessage: document.getElementById("copyMessage"),
       copyImage: document.getElementById("copyImage"),
       downloadImage: document.getElementById("downloadImage"),
       copyStatus: document.getElementById("copyStatus"),
@@ -1828,6 +1899,7 @@
 
     let currentTeacher = null;
     let activeDateReportFilter = "date";
+    let editingStudentId = null;
     let appData = {
       teachers: [...teachers],
       demoTeachers: [...teachers],
@@ -1956,6 +2028,18 @@
       });
     }
 
+    function formatMonthName(monthValue) {
+      if (!monthValue) return "Month";
+      const [year, month] = monthValue.split("-").map(Number);
+      return new Date(year, month - 1, 1).toLocaleDateString("en-IN", {
+        month: "long"
+      });
+    }
+
+    function getTeacherCollegeName() {
+      return currentTeacher?.collegeName || "College Name";
+    }
+
     function getRecentMonthOptions() {
       const today = toLocalDate(getTodayValue());
       return [0, 1, 2, 3, 4, 5].map((offset) => {
@@ -2006,7 +2090,9 @@
     }
 
     function canDeleteStudentRecord(student) {
-      return isAdminUser() || student.className === currentTeacher?.assignedClass;
+      return isAdminUser()
+        || student.className === currentTeacher?.assignedClass
+        || student.createdBy === currentTeacher?.username;
     }
 
     function canDeleteClassRecord(className) {
@@ -2213,12 +2299,13 @@
     async function handleRegister(event) {
       event.preventDefault();
       const teacherName = elements.registerTeacherName.value.trim();
+      const collegeName = elements.registerCollegeName.value.trim();
       const subject = elements.registerSubject.value.trim();
       const assignedClass = normalizeClassName(elements.registerClass.value);
       const username = normalizeUsername(elements.registerUsername.value);
       const password = elements.registerPassword.value;
 
-      if (!teacherName || !subject || !assignedClass || !username || !password) {
+      if (!teacherName || !collegeName || !subject || !assignedClass || !username || !password) {
         elements.registerError.textContent = "Please fill every field.";
         return;
       }
@@ -2238,7 +2325,7 @@
       try {
         const payload = await apiRequest("/api/register", {
           method: "POST",
-          body: JSON.stringify({ teacherName, subject, assignedClass, username, password })
+          body: JSON.stringify({ teacherName, collegeName, subject, assignedClass, username, password })
         });
         localStorage.setItem(LOGIN_KEY, payload.teacher.username);
         localStorage.setItem(TOKEN_KEY, payload.sessionToken);
@@ -2707,7 +2794,7 @@
         });
 
         setAttendanceRecords(payload.attendanceRecords);
-        generateWhatsAppMessage(dateValue, absent);
+        generateAbsentReportImage(dateValue, absent);
         renderDashboard();
         renderMarkAttendance();
         renderDateReport();
@@ -2737,7 +2824,7 @@
         const path = `/api/attendance/${encodeURIComponent(dateValue)}?username=${encodeURIComponent(currentTeacher.username)}&className=${encodeURIComponent(currentTeacher.assignedClass)}&subject=${encodeURIComponent(currentTeacher.subject)}`;
         const payload = await apiRequest(path, { method: "DELETE" });
         setAttendanceRecords(payload.attendanceRecords);
-        resetWhatsappOutputs();
+        resetReportImageOutputs();
         renderDashboard();
         renderMarkAttendance();
         renderDateReport();
@@ -2764,32 +2851,6 @@
       });
     }
 
-    function buildWhatsappTextTable(rows) {
-      if (!rows.length) return "No absent students.";
-
-      const headers = ["S.No.", "Roll No.", "Student Name", "Father's Name", "Month %", "Overall %"];
-      const values = rows.map((row) => [
-        row.serial,
-        row.rollNo,
-        row.studentName,
-        row.fatherName,
-        row.monthPercentage,
-        row.overallPercentage
-      ].map(String));
-      const widths = headers.map((header, index) => {
-        return Math.max(header.length, ...values.map((row) => row[index].length));
-      });
-      const formatRow = (row) => row.map((cell, index) => String(cell).padEnd(widths[index], " ")).join(" | ");
-      const separator = widths.map((width) => "-".repeat(width)).join("-+-");
-      return [
-        "```",
-        formatRow(headers),
-        separator,
-        ...values.map(formatRow),
-        "```"
-      ].join("\n");
-    }
-
     function drawFittedText(ctx, text, x, y, maxWidth) {
       const value = String(text || "-");
       if (ctx.measureText(value).width <= maxWidth) {
@@ -2804,21 +2865,22 @@
       ctx.fillText(`${fitted}...`, x, y);
     }
 
-    function renderWhatsappImage(dateValue, rows) {
+    function renderAbsentReportImage(dateValue, rows) {
       const canvas = elements.whatsappImageCanvas;
       const ctx = canvas.getContext("2d");
+      const monthColumnLabel = `${formatMonthName(dateValue.slice(0, 7))} %`;
       const columns = [
         { label: "S.No.", key: "serial", width: 72 },
         { label: "Roll No.", key: "rollNo", width: 92 },
         { label: "Student Name", key: "studentName", width: 235 },
         { label: "Father's Name", key: "fatherName", width: 235 },
-        { label: "Month %", key: "monthPercentage", width: 130 },
+        { label: monthColumnLabel, key: "monthPercentage", width: 130 },
         { label: "Overall %", key: "overallPercentage", width: 135 }
       ];
       const margin = 34;
       const tableWidth = columns.reduce((sum, column) => sum + column.width, 0);
       const rowHeight = 52;
-      const tableTop = 154;
+      const tableTop = 188;
       const height = rows.length ? tableTop + rowHeight * (rows.length + 1) + 38 : 300;
 
       canvas.width = tableWidth + margin * 2;
@@ -2828,14 +2890,22 @@
       ctx.fillStyle = "#ffffff";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.fillStyle = "#0f172a";
+      ctx.textAlign = "center";
+      ctx.font = "700 23px Segoe UI, Arial, sans-serif";
+      let collegeName = getTeacherCollegeName();
+      while (collegeName.length > 1 && ctx.measureText(`${collegeName}...`).width > tableWidth) {
+        collegeName = collegeName.slice(0, -1);
+      }
+      ctx.fillText(collegeName.length < getTeacherCollegeName().length ? `${collegeName}...` : collegeName, canvas.width / 2, 42);
+      ctx.textAlign = "left";
       ctx.font = "700 30px Segoe UI, Arial, sans-serif";
-      ctx.fillText("Absent Students Report", margin, 48);
+      ctx.fillText("Absent Students Report", margin, 80);
       ctx.font = "600 17px Segoe UI, Arial, sans-serif";
       ctx.fillStyle = "#475569";
-      ctx.fillText(`Date: ${formatShortDate(dateValue)}`, margin, 82);
-      ctx.fillText(`Class: ${currentTeacher.assignedClass}`, margin + 210, 82);
-      ctx.fillText(`Subject: ${currentTeacher.subject}`, margin + 390, 82);
-      ctx.fillText(`Teacher: ${currentTeacher.teacherName}`, margin, 112);
+      ctx.fillText(`Date: ${formatShortDate(dateValue)}`, margin, 116);
+      ctx.fillText(`Class: ${currentTeacher.assignedClass}`, margin + 210, 116);
+      ctx.fillText(`Subject: ${currentTeacher.subject}`, margin + 390, 116);
+      ctx.fillText(`Teacher: ${currentTeacher.teacherName}`, margin, 146);
 
       if (!rows.length) {
         ctx.fillStyle = "#eff6ff";
@@ -2883,61 +2953,26 @@
       elements.messageImageWrap.classList.remove("hidden");
     }
 
-    function resetWhatsappOutputs() {
-      elements.whatsappMessage.value = "";
-      elements.copyMessage.disabled = true;
+    function resetReportImageOutputs() {
+      elements.reportImageEmpty.classList.remove("hidden");
       elements.copyImage.disabled = true;
       elements.downloadImage.disabled = true;
       elements.messageImageWrap.classList.add("hidden");
       elements.copyStatus.textContent = "";
     }
 
-    function generateWhatsAppMessage(dateValue, absentIds) {
+    function generateAbsentReportImage(dateValue, absentIds) {
       const absentStudents = absentIds
         .map((id) => findAssignedStudentById(id))
         .filter(Boolean)
         .sort((a, b) => a.rollNo - b.rollNo);
       const rows = getAbsentReportRows(dateValue, absentStudents);
 
-      const absentLines = absentStudents.length
-        ? buildWhatsappTextTable(rows)
-        : "None";
-
-      elements.whatsappMessage.value = [
-        `Date: ${formatShortDate(dateValue)}`,
-        `Class: ${currentTeacher.assignedClass}`,
-        `Subject: ${currentTeacher.subject}`,
-        "Absent Students:",
-        absentLines
-      ].join("\n");
-
-      renderWhatsappImage(dateValue, rows);
-      elements.copyMessage.disabled = false;
+      renderAbsentReportImage(dateValue, rows);
+      elements.reportImageEmpty.classList.add("hidden");
       elements.copyImage.disabled = false;
       elements.downloadImage.disabled = false;
       elements.copyStatus.textContent = "";
-    }
-
-    async function copyWhatsAppMessage() {
-      const message = elements.whatsappMessage.value.trim();
-      if (!message) {
-        showToast("No message to copy.");
-        return;
-      }
-
-      try {
-        if (navigator.clipboard && window.isSecureContext) {
-          await navigator.clipboard.writeText(message);
-        } else {
-          elements.whatsappMessage.select();
-          document.execCommand("copy");
-          window.getSelection().removeAllRanges();
-        }
-        elements.copyStatus.textContent = "Message copied.";
-        showToast("Message copied.");
-      } catch (error) {
-        elements.copyStatus.textContent = "Copy failed. Select the message and copy it manually.";
-      }
     }
 
     function canvasToBlob(canvas) {
@@ -3277,6 +3312,53 @@
       }
     }
 
+    function startStudentEdit(studentId) {
+      const student = findStudentById(studentId);
+      if (!student) return;
+
+      if (!canDeleteStudentRecord(student)) {
+        setNotice(elements.classStudentNotice, "Only the assigned class teacher or admin can edit this student.", "danger");
+        return;
+      }
+
+      editingStudentId = studentId;
+      renderClassStudentManager();
+    }
+
+    function cancelStudentEdit() {
+      editingStudentId = null;
+      renderClassStudentManager();
+    }
+
+    async function saveStudentEdit(studentId) {
+      const student = findStudentById(studentId);
+      if (!student) return;
+
+      const editRow = elements.studentRoster.querySelector(`.student-edit-row[data-student-id="${studentId}"]`);
+      if (!editRow) return;
+
+      const rollNo = Number(editRow.querySelector(".edit-roll-no").value);
+      const name = editRow.querySelector(".edit-student-name").value.trim();
+      const fatherName = editRow.querySelector(".edit-father-name").value.trim();
+
+      if (!rollNo || !name) {
+        setNotice(elements.classStudentNotice, "Roll number and student name are required.", "danger");
+        return;
+      }
+
+      try {
+        const payload = await apiRequest(`/api/students/${encodeURIComponent(studentId)}?username=${encodeURIComponent(currentTeacher.username)}`, {
+          method: "PATCH",
+          body: JSON.stringify({ rollNo, name, fatherName })
+        });
+        appData.students = payload.students || appData.students;
+        editingStudentId = null;
+        refreshAfterRosterChange(`${name} updated.`);
+      } catch (error) {
+        setNotice(elements.classStudentNotice, error.message || "Student could not be updated.", "danger");
+      }
+    }
+
     async function deleteStudent(studentId) {
       const student = findStudentById(studentId);
       if (!student) return;
@@ -3333,16 +3415,21 @@
     function renderClassStudentManager(useDashboardClassDefault = false) {
       const classes = getClassNames();
       const defaultClass = currentTeacher.assignedClass;
+      const shouldUseDefaultClass = useDashboardClassDefault === true;
       elements.classCountBadge.textContent = `${classes.length} class${classes.length === 1 ? "" : "es"}`;
-      fillClassSelect(elements.manualStudentClass, useDashboardClassDefault ? defaultClass : (elements.manualStudentClass.value || defaultClass));
-      fillClassSelect(elements.importStudentClass, useDashboardClassDefault ? defaultClass : (elements.importStudentClass.value || defaultClass));
-      fillClassSelect(elements.studentRosterClass, useDashboardClassDefault ? defaultClass : (elements.studentRosterClass.value || defaultClass), true);
+      fillClassSelect(elements.manualStudentClass, shouldUseDefaultClass ? defaultClass : (elements.manualStudentClass.value || defaultClass));
+      fillClassSelect(elements.importStudentClass, shouldUseDefaultClass ? defaultClass : (elements.importStudentClass.value || defaultClass));
+      fillClassSelect(elements.studentRosterClass, shouldUseDefaultClass ? defaultClass : (elements.studentRosterClass.value || defaultClass), true);
 
       const selectedClass = elements.studentRosterClass.value;
       elements.deleteClassBtn.disabled = !selectedClass || !canDeleteClassRecord(selectedClass);
       const rosterStudents = appData.students
         .filter((student) => !selectedClass || student.className === selectedClass)
         .sort((a, b) => a.className.localeCompare(b.className) || a.rollNo - b.rollNo);
+
+      if (editingStudentId && !rosterStudents.some((student) => Number(student.id) === Number(editingStudentId))) {
+        editingStudentId = null;
+      }
 
       if (!rosterStudents.length) {
         elements.studentRoster.innerHTML = `<div class="empty-state">No students found for this class.</div>`;
@@ -3351,37 +3438,72 @@
 
       elements.studentRoster.innerHTML = `
         <div class="table-wrap">
-          <table>
+          <table class="student-roster-table">
             <thead>
               <tr>
-                <th>Class</th>
                 <th>Roll No</th>
-                <th>Name</th>
-                <th>Father's Name</th>
-                <th>Student ID</th>
+                <th>Student Details</th>
                 <th>Action</th>
               </tr>
             </thead>
             <tbody>
               ${rosterStudents.map((student) => {
                 const action = canDeleteStudentRecord(student)
-                  ? `<button class="danger-btn delete-student" type="button" data-student-id="${student.id}">Delete</button>`
+                  ? `<div class="row-actions">
+                      <button class="secondary-btn edit-student" type="button" data-student-id="${student.id}">Edit</button>
+                      <button class="danger-btn delete-student" type="button" data-student-id="${student.id}">Delete</button>
+                    </div>`
                   : `<span class="badge neutral">Locked</span>`;
                 return `
                   <tr>
-                    <td><span class="badge neutral">${escapeHtml(student.className)}</span></td>
                     <td class="roll-cell">${student.rollNo}</td>
-                    <td class="student-name">${escapeHtml(student.name)}</td>
-                    <td>${escapeHtml(getFatherName(student))}</td>
-                    <td>${student.id}</td>
+                    <td>
+                      <div class="student-name">${escapeHtml(student.name)}</div>
+                      <div class="muted">Father: ${escapeHtml(getFatherName(student))}</div>
+                      <div class="muted">Class: ${escapeHtml(student.className)}</div>
+                    </td>
                     <td>${action}</td>
                   </tr>
+                  ${Number(editingStudentId) === Number(student.id) ? `
+                    <tr class="student-edit-row" data-student-id="${student.id}">
+                      <td colspan="3">
+                        <div class="inline-edit-grid">
+                          <div class="field">
+                            <label>Roll No</label>
+                            <input class="edit-roll-no" type="number" min="1" value="${student.rollNo}">
+                          </div>
+                          <div class="field">
+                            <label>Student Name</label>
+                            <input class="edit-student-name" type="text" value="${escapeHtml(student.name)}">
+                          </div>
+                          <div class="field">
+                            <label>Father's Name</label>
+                            <input class="edit-father-name" type="text" value="${escapeHtml(student.fatherName || "")}">
+                          </div>
+                          <button class="primary-btn save-student-edit" type="button" data-student-id="${student.id}">Save</button>
+                          <button class="secondary-btn cancel-student-edit" type="button">Cancel</button>
+                        </div>
+                      </td>
+                    </tr>
+                  ` : ""}
                 `;
               }).join("")}
             </tbody>
           </table>
         </div>
       `;
+
+      elements.studentRoster.querySelectorAll(".edit-student").forEach((button) => {
+        button.addEventListener("click", () => startStudentEdit(Number(button.dataset.studentId)));
+      });
+
+      elements.studentRoster.querySelectorAll(".save-student-edit").forEach((button) => {
+        button.addEventListener("click", () => saveStudentEdit(Number(button.dataset.studentId)));
+      });
+
+      elements.studentRoster.querySelectorAll(".cancel-student-edit").forEach((button) => {
+        button.addEventListener("click", cancelStudentEdit);
+      });
 
       elements.studentRoster.querySelectorAll(".delete-student").forEach((button) => {
         button.addEventListener("click", () => deleteStudent(Number(button.dataset.studentId)));
@@ -3689,7 +3811,7 @@
       elements.monthQuickFilter.value = "";
       activeDateReportFilter = "date";
       elements.holidayDate.value = elements.holidayDate.value || today;
-      resetWhatsappOutputs();
+      resetReportImageOutputs();
       elements.adminNavBtn.classList.toggle("hidden", !isAdminUser());
       renderTeacherScopeText();
       renderDashboard();
@@ -3720,14 +3842,16 @@
       elements.markSort.addEventListener("change", renderMarkAttendance);
       elements.saveAttendance.addEventListener("click", saveAttendance);
       elements.deleteAttendance.addEventListener("click", deleteAttendanceRecord);
-      elements.copyMessage.addEventListener("click", copyWhatsAppMessage);
       elements.copyImage.addEventListener("click", copyWhatsappImage);
       elements.downloadImage.addEventListener("click", downloadWhatsappImage);
       elements.addHoliday.addEventListener("click", addHoliday);
       elements.createClassBtn.addEventListener("click", createClass);
       elements.addStudentBtn.addEventListener("click", addStudentManually);
       elements.importStudentsBtn.addEventListener("click", importStudentsFromSheet);
-      elements.studentRosterClass.addEventListener("change", renderClassStudentManager);
+      elements.studentRosterClass.addEventListener("change", () => {
+        editingStudentId = null;
+        renderClassStudentManager();
+      });
       elements.deleteClassBtn.addEventListener("click", deleteSelectedClass);
       elements.dateReportDate.addEventListener("change", handleDateFilterChange);
       elements.dateReportSort.addEventListener("change", renderDateReport);
