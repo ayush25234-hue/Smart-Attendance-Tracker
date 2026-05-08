@@ -7,8 +7,8 @@ const PORT = Number(process.env.PORT || 3000);
 const HOST = process.env.HOST || "0.0.0.0";
 const AUTH_SECRET = process.env.AUTH_SECRET || "change-this-secret-before-public-deployment";
 const ADMIN_USERNAME = normalizeUsername(process.env.ADMIN_USERNAME || "admin");
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "";
-const ADMIN_NAME = process.env.ADMIN_NAME || "School Admin";
+const ADMIN_PASSWORD = String(process.env.ADMIN_PASSWORD || "").trim();
+const ADMIN_NAME = String(process.env.ADMIN_NAME || "School Admin").trim();
 const DATABASE_URL = process.env.DATABASE_URL || "";
 const ROOT_DIR = __dirname;
 const DATA_DIR = process.env.DATA_DIR ? path.resolve(process.env.DATA_DIR) : path.join(ROOT_DIR, "data");
@@ -497,6 +497,12 @@ async function handleLogin(req, res) {
   const body = await readBody(req);
   const username = normalizeUsername(body.username);
   const password = String(body.password || "");
+
+  if (username === ADMIN_USERNAME && !ADMIN_PASSWORD) {
+    sendError(res, 503, "Admin login is not enabled. Set ADMIN_PASSWORD in Render Environment, save, and redeploy.");
+    return;
+  }
+
   let teacher = await findTeacher(username);
 
   if (!teacher) {
