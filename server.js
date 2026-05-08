@@ -5,6 +5,10 @@ const crypto = require("crypto");
 
 const PORT = Number(process.env.PORT || 3000);
 const HOST = process.env.HOST || "0.0.0.0";
+const AUTH_SECRET = process.env.AUTH_SECRET || "change-this-secret-before-public-deployment";
+const ADMIN_USERNAME = normalizeUsername(process.env.ADMIN_USERNAME || "admin");
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "";
+const ADMIN_NAME = process.env.ADMIN_NAME || "School Admin";
 const ROOT_DIR = __dirname;
 const DATA_DIR = path.join(ROOT_DIR, "data");
 const DB_PATH = path.join(DATA_DIR, "db.json");
@@ -101,8 +105,60 @@ function publicTeacher(teacher) {
     username: teacher.username,
     teacherName: teacher.teacherName,
     subject: teacher.subject,
-    assignedClass: teacher.assignedClass
+    assignedClass: teacher.assignedClass,
+    role: teacher.role || "teacher"
   };
+}
+
+function base64UrlEncode(value) {
+  return Buffer.from(value).toString("base64url");
+}
+
+function base64UrlJson(value) {
+  return base64UrlEncode(JSON.stringify(value));
+}
+
+function signValue(value) {
+  return crypto.createHmac("sha256", AUTH_SECRET).update(value).digest("base64url");
+}
+
+function createSessionToken(teacher) {
+  const payload = {
+    username: teacher.username,
+    role: teacher.role || "teacher",
+    exp: Date.now() + 1000 * 60 * 60 * 24 * 7
+  };
+  const encodedPayload = base64UrlJson(payload);
+  return `${encodedPayload}.${signValue(encodedPayload)}`;
+}
+
+function verifySessionToken(token) {
+  const [encodedPayload, signature] = String(token || "").split(".");
+  if (!encodedPayload || !signature) return null;
+
+  const expected = signValue(encodedPayload);
+  const providedBuffer = Buffer.from(signature);
+  const expectedBuffer = Buffer.from(expected);
+  if (providedBuffer.length !== expectedBuffer.length) return null;
+  if (!crypto.timingSafeEqual(providedBuffer, expectedBuffer)) return null;
+
+  try {
+    const payload = JSON.parse(Buffer.from(encodedPayload, "base64url").toString("utf8"));
+    if (!payload.exp || payload.exp < Date.now()) return null;
+    return payload;
+  } catch {
+    return null;
+  }
+}
+
+function getBearerToken(req) {
+  const header = req.headers.authorization || "";
+  if (header.startsWith("Bearer ")) return header.slice(7);
+  return req.headers["x-auth-token"] || "";
+}
+
+function isAdmin(teacher) {
+  return teacher?.role === "admin";
 }
 
 function isSunday(dateValue) {
@@ -131,6 +187,7 @@ async function ensureDb() {
     await fs.writeFile(DB_PATH, JSON.stringify({
       teachers: [],
       classes: sampleClasses,
+      classMeta: {},
       students,
       attendanceRecords: {},
       holidayRecords: {}
@@ -149,6 +206,7 @@ async function readDb() {
   return {
     teachers: Array.isArray(db.teachers) ? db.teachers : [],
     classes: dbClasses,
+    classMeta: db.classMeta || {},
     students: dbStudents,
     attendanceRecords: db.attendanceRecords || {},
     holidayRecords: db.holidayRecords || {}
@@ -161,10 +219,21 @@ async function writeDb(db) {
 
 async function getAllTeachers() {
   const db = await readDb();
-  const merged = new Map(sampleTeachers.map((teacher) => [teacher.username, { ...teacher }]));
+  const merged = new Map(sampleTeachers.map((teacher) => [teacher.username, { ...teacher, role: "teacher" }]));
+  if (ADMIN_PASSWORD) {
+    const adminTeacher = {
+      username: ADMIN_USERNAME,
+      password: ADMIN_PASSWORD,
+      teacherName: ADMIN_NAME,
+      subject: "Administration",
+      assignedClass: db.classes[0] || "",
+      role: "admin"
+    };
+    merged.set(adminTeacher.username, adminTeacher);
+  }
   db.teachers.forEach((teacher) => {
     const base = merged.get(teacher.username) || {};
-    merged.set(teacher.username, { ...base, ...teacher });
+    merged.set(teacher.username, { role: "teacher", ...base, ...teacher });
   });
   return [...merged.values()];
 }
@@ -173,6 +242,88 @@ async function findTeacher(username) {
   const normalized = normalizeUsername(username);
   const allTeachers = await getAllTeachers();
   return allTeachers.find((teacher) => teacher.username === normalized);
+}
+
+async function requireAuth(req) {
+  const payload = verifySessionToken(getBearerToken(req));
+  if (!payload?.username) return null;
+  const teacher = await findTeacher(payload.username);
+  if (!teacher) return null;
+  return teacher;
+}
+
+async function requireActor(req, res) {
+  const actor = await requireAuth(req);
+  if (!actor) {
+    sendError(res, 401, "Login session expired. Please login again.");
+    return null;
+  }
+  return actor;
+}
+
+function canActAs(actor, username) {
+  return isAdmin(actor) || actor.username === normalizeUsername(username);
+}
+
+function canManageClass(actor, className, db) {
+  const normalizedClassName = normalizeClassName(className);
+  return isAdmin(actor)
+    || actor.assignedClass === normalizedClassName
+    || db.classMeta?.[normalizedClassName]?.createdBy === actor.username;
+}
+
+function canDeleteHoliday(actor, holiday) {
+  return isAdmin(actor) || holiday?.addedBy === actor.username;
+}
+
+function upsertTeacherOverride(db, teacher, updates) {
+  const index = db.teachers.findIndex((item) => item.username === teacher.username);
+  const base = {
+    username: teacher.username,
+    teacherName: teacher.teacherName,
+    subject: teacher.subject,
+    assignedClass: teacher.assignedClass,
+    role: teacher.role || "teacher"
+  };
+  const nextTeacher = {
+    ...(index >= 0 ? db.teachers[index] : base),
+    ...updates,
+    updatedAt: new Date().toISOString()
+  };
+
+  if (index >= 0) {
+    db.teachers[index] = nextTeacher;
+  } else {
+    db.teachers.push(nextTeacher);
+  }
+}
+
+function pruneAttendanceContainers(db) {
+  Object.keys(db.attendanceRecords).forEach((dateValue) => {
+    Object.keys(db.attendanceRecords[dateValue] || {}).forEach((className) => {
+      if (!Object.keys(db.attendanceRecords[dateValue][className] || {}).length) {
+        delete db.attendanceRecords[dateValue][className];
+      }
+    });
+    if (!Object.keys(db.attendanceRecords[dateValue] || {}).length) {
+      delete db.attendanceRecords[dateValue];
+    }
+  });
+}
+
+function removeStudentFromAttendance(db, studentId) {
+  Object.values(db.attendanceRecords).forEach((classRecords) => {
+    Object.values(classRecords || {}).forEach((subjectRecords) => {
+      Object.values(subjectRecords || {}).forEach((record) => {
+        if (Array.isArray(record.present)) {
+          record.present = record.present.filter((id) => Number(id) !== Number(studentId));
+        }
+        if (Array.isArray(record.absent)) {
+          record.absent = record.absent.filter((id) => Number(id) !== Number(studentId));
+        }
+      });
+    });
+  });
 }
 
 function sendJson(res, statusCode, payload) {
@@ -202,12 +353,27 @@ async function readBody(req) {
 
 async function handleBootstrap(req, res) {
   const db = await readDb();
+  const actor = await requireAuth(req);
+  const demoTeachers = sampleTeachers.map((teacher) => ({
+    ...publicTeacher(teacher),
+    password: teacher.password
+  }));
+
+  if (!actor) {
+    sendJson(res, 200, {
+      teachers: [],
+      demoTeachers,
+      classes: db.classes,
+      students: [],
+      attendanceRecords: {},
+      holidayRecords: {}
+    });
+    return;
+  }
+
   sendJson(res, 200, {
     teachers: (await getAllTeachers()).map(publicTeacher),
-    demoTeachers: sampleTeachers.map((teacher) => ({
-      ...publicTeacher(teacher),
-      password: teacher.password
-    })),
+    demoTeachers,
     classes: db.classes,
     students: db.students,
     attendanceRecords: db.attendanceRecords,
@@ -226,7 +392,10 @@ async function handleLogin(req, res) {
     return;
   }
 
-  sendJson(res, 200, { teacher: publicTeacher(teacher) });
+  sendJson(res, 200, {
+    teacher: publicTeacher(teacher),
+    sessionToken: createSessionToken(teacher)
+  });
 }
 
 async function handleRegister(req, res) {
@@ -265,6 +434,7 @@ async function handleRegister(req, res) {
     teacherName,
     subject,
     assignedClass,
+    role: "teacher",
     passwordSalt: salt,
     passwordHash: hash,
     createdAt: new Date().toISOString()
@@ -278,11 +448,19 @@ async function handleRegister(req, res) {
   await writeDb(db);
   sendJson(res, 201, {
     teacher: publicTeacher(teacher),
+    sessionToken: createSessionToken(teacher),
     teachers: (await getAllTeachers()).map(publicTeacher)
   });
 }
 
 async function handleTeacher(req, res, username) {
+  const actor = await requireActor(req, res);
+  if (!actor) return;
+  if (!canActAs(actor, username)) {
+    sendError(res, 403, "You can view only your own teacher account.");
+    return;
+  }
+
   const teacher = await findTeacher(username);
   if (!teacher) {
     sendError(res, 404, "Teacher account not found.");
@@ -292,6 +470,13 @@ async function handleTeacher(req, res, username) {
 }
 
 async function handleAssignTeacherClass(req, res, username) {
+  const actor = await requireActor(req, res);
+  if (!actor) return;
+  if (!canActAs(actor, username)) {
+    sendError(res, 403, "You can change only your own dashboard class.");
+    return;
+  }
+
   const body = await readBody(req);
   const assignedClass = normalizeClassName(body.assignedClass);
   const teacher = await findTeacher(username);
@@ -337,15 +522,18 @@ async function handleAssignTeacherClass(req, res, username) {
 }
 
 async function handleAddClass(req, res) {
+  const actor = await requireActor(req, res);
+  if (!actor) return;
+
   const body = await readBody(req);
   const className = normalizeClassName(body.className);
-  const teacher = await findTeacher(body.teacherUsername);
-  const assignToTeacher = Boolean(body.assignToTeacher);
-
-  if (!teacher) {
-    sendError(res, 401, "Teacher account not found.");
+  if (!canActAs(actor, body.teacherUsername)) {
+    sendError(res, 403, "You can create classes only for your own account.");
     return;
   }
+
+  const teacher = actor;
+  const assignToTeacher = Boolean(body.assignToTeacher);
 
   if (!className) {
     sendError(res, 400, "Class name is required.");
@@ -357,6 +545,10 @@ async function handleAddClass(req, res) {
     db.classes.push(className);
     db.classes.sort();
   }
+  db.classMeta[className] = db.classMeta[className] || {
+    createdBy: teacher.username,
+    createdAt: new Date().toISOString()
+  };
 
   if (assignToTeacher) {
     const index = db.teachers.findIndex((item) => item.username === teacher.username);
@@ -395,12 +587,13 @@ function normalizeStudentInput(input, fallbackClassName) {
 }
 
 async function handleAddStudent(req, res) {
-  const body = await readBody(req);
-  const teacher = await findTeacher(body.teacherUsername);
-  const studentInput = normalizeStudentInput(body, body.className);
+  const actor = await requireActor(req, res);
+  if (!actor) return;
 
-  if (!teacher) {
-    sendError(res, 401, "Teacher account not found.");
+  const body = await readBody(req);
+  const studentInput = normalizeStudentInput(body, body.className);
+  if (!canActAs(actor, body.teacherUsername)) {
+    sendError(res, 403, "You can add students only from your own account.");
     return;
   }
 
@@ -410,6 +603,11 @@ async function handleAddStudent(req, res) {
   }
 
   const db = await readDb();
+  if (!canManageClass(actor, studentInput.className, db)) {
+    sendError(res, 403, "You can add students only to your selected class.");
+    return;
+  }
+
   const duplicate = db.students.some((student) => {
     return student.className === studentInput.className && Number(student.rollNo) === studentInput.rollNo;
   });
@@ -423,7 +621,9 @@ async function handleAddStudent(req, res) {
     id: getNextStudentId(db.students),
     rollNo: studentInput.rollNo,
     name: studentInput.name,
-    className: studentInput.className
+    className: studentInput.className,
+    createdBy: actor.username,
+    createdAt: new Date().toISOString()
   };
 
   db.students.push(student);
@@ -437,13 +637,14 @@ async function handleAddStudent(req, res) {
 }
 
 async function handleImportStudents(req, res) {
+  const actor = await requireActor(req, res);
+  if (!actor) return;
+
   const body = await readBody(req);
-  const teacher = await findTeacher(body.teacherUsername);
   const fallbackClassName = normalizeClassName(body.className);
   const rows = Array.isArray(body.students) ? body.students : [];
-
-  if (!teacher) {
-    sendError(res, 401, "Teacher account not found.");
+  if (!canActAs(actor, body.teacherUsername)) {
+    sendError(res, 403, "You can import students only from your own account.");
     return;
   }
 
@@ -458,6 +659,11 @@ async function handleImportStudents(req, res) {
   }
 
   const db = await readDb();
+  if (!canManageClass(actor, fallbackClassName, db)) {
+    sendError(res, 403, "You can import students only to your selected class.");
+    return;
+  }
+
   let nextId = getNextStudentId(db.students);
   let imported = 0;
   let skipped = 0;
@@ -476,7 +682,9 @@ async function handleImportStudents(req, res) {
       id: nextId,
       rollNo: studentInput.rollNo,
       name: studentInput.name,
-      className: studentInput.className
+      className: studentInput.className,
+      createdBy: actor.username,
+      createdAt: new Date().toISOString()
     });
     nextId += 1;
     imported += 1;
@@ -493,14 +701,22 @@ async function handleImportStudents(req, res) {
 }
 
 async function handleSaveAttendance(req, res) {
+  const actor = await requireActor(req, res);
+  if (!actor) return;
+
   const body = await readBody(req);
   const dateValue = String(body.date || "");
-  const teacher = await findTeacher(body.teacherUsername);
+  if (!canActAs(actor, body.teacherUsername)) {
+    sendError(res, 403, "You can save attendance only for your own account.");
+    return;
+  }
+
+  const teacher = actor;
   const absent = Array.isArray(body.absent) ? body.absent.map(Number) : [];
   const overwrite = Boolean(body.overwrite);
 
-  if (!teacher) {
-    sendError(res, 401, "Teacher account not found.");
+  if (isAdmin(teacher)) {
+    sendError(res, 403, "Use a subject teacher account to save attendance.");
     return;
   }
 
@@ -534,6 +750,11 @@ async function handleSaveAttendance(req, res) {
     .map((student) => student.id);
 
   const existing = db.attendanceRecords[dateValue]?.[teacher.assignedClass]?.[teacher.subject];
+  if (existing && existing.teacherUsername !== teacher.username) {
+    sendError(res, 403, "This attendance record belongs to another teacher.");
+    return;
+  }
+
   if (existing && !overwrite) {
     sendJson(res, 409, { error: "Attendance already exists.", duplicate: true });
     return;
@@ -556,16 +777,17 @@ async function handleSaveAttendance(req, res) {
 }
 
 async function handleAddHoliday(req, res) {
+  const actor = await requireActor(req, res);
+  if (!actor) return;
+
   const body = await readBody(req);
   const dateValue = String(body.date || "");
   const reason = String(body.reason || "").trim();
-  const teacher = await findTeacher(body.addedBy);
-  const overwrite = Boolean(body.overwrite);
-
-  if (!teacher) {
-    sendError(res, 401, "Teacher account not found.");
+  if (!canActAs(actor, body.addedBy)) {
+    sendError(res, 403, "You can add holidays only from your own account.");
     return;
   }
+  const overwrite = Boolean(body.overwrite);
 
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateValue) || !reason) {
     sendError(res, 400, "Select a holiday date and add a reason.");
@@ -580,7 +802,7 @@ async function handleAddHoliday(req, res) {
 
   db.holidayRecords[dateValue] = {
     reason,
-    addedBy: teacher.username,
+    addedBy: actor.username,
     addedAt: new Date().toISOString()
   };
 
@@ -589,9 +811,10 @@ async function handleAddHoliday(req, res) {
 }
 
 async function handleRemoveHoliday(req, res, dateValue, username) {
-  const teacher = await findTeacher(username);
-  if (!teacher) {
-    sendError(res, 401, "Teacher account not found.");
+  const actor = await requireActor(req, res);
+  if (!actor) return;
+  if (!canActAs(actor, username)) {
+    sendError(res, 403, "You can remove holidays only from your own account.");
     return;
   }
 
@@ -601,9 +824,129 @@ async function handleRemoveHoliday(req, res, dateValue, username) {
     return;
   }
 
+  if (!canDeleteHoliday(actor, db.holidayRecords[dateValue])) {
+    sendError(res, 403, "Only the teacher who added this holiday or the admin can remove it.");
+    return;
+  }
+
   delete db.holidayRecords[dateValue];
   await writeDb(db);
   sendJson(res, 200, { holidayRecords: db.holidayRecords });
+}
+
+async function handleDeleteStudent(req, res, studentId, username) {
+  const actor = await requireActor(req, res);
+  if (!actor) return;
+  if (!canActAs(actor, username)) {
+    sendError(res, 403, "You can delete students only from your own account.");
+    return;
+  }
+
+  const db = await readDb();
+  const student = db.students.find((item) => Number(item.id) === Number(studentId));
+  if (!student) {
+    sendError(res, 404, "Student not found.");
+    return;
+  }
+
+  if (!canManageClass(actor, student.className, db)) {
+    sendError(res, 403, "Only the assigned class teacher or admin can delete this student.");
+    return;
+  }
+
+  db.students = db.students.filter((item) => Number(item.id) !== Number(studentId));
+  removeStudentFromAttendance(db, studentId);
+  await writeDb(db);
+  sendJson(res, 200, {
+    students: db.students,
+    attendanceRecords: db.attendanceRecords
+  });
+}
+
+async function handleDeleteAttendance(req, res, dateValue, searchParams) {
+  const actor = await requireActor(req, res);
+  if (!actor) return;
+  const username = searchParams.get("username");
+  if (!canActAs(actor, username)) {
+    sendError(res, 403, "You can delete attendance only from your own account.");
+    return;
+  }
+
+  const className = normalizeClassName(searchParams.get("className") || actor.assignedClass);
+  const subject = String(searchParams.get("subject") || actor.subject || "").trim();
+  const db = await readDb();
+  const record = db.attendanceRecords[dateValue]?.[className]?.[subject];
+  if (!record) {
+    sendError(res, 404, "Attendance record not found.");
+    return;
+  }
+
+  if (!isAdmin(actor) && record.teacherUsername !== actor.username) {
+    sendError(res, 403, "Only the subject teacher who saved this attendance or admin can delete it.");
+    return;
+  }
+
+  delete db.attendanceRecords[dateValue][className][subject];
+  pruneAttendanceContainers(db);
+  await writeDb(db);
+  sendJson(res, 200, { attendanceRecords: db.attendanceRecords });
+}
+
+async function handleDeleteClass(req, res, classNameParam, username) {
+  const actor = await requireActor(req, res);
+  if (!actor) return;
+  if (!canActAs(actor, username)) {
+    sendError(res, 403, "You can delete classes only from your own account.");
+    return;
+  }
+
+  const className = normalizeClassName(classNameParam);
+  const db = await readDb();
+  if (!db.classes.includes(className)) {
+    sendError(res, 404, "Class not found.");
+    return;
+  }
+
+  if (!canManageClass(actor, className, db)) {
+    sendError(res, 403, "Only the assigned class teacher or admin can delete this class.");
+    return;
+  }
+
+  if (!isAdmin(actor)) {
+    const hasOtherTeacherRecords = Object.values(db.attendanceRecords).some((classRecords) => {
+      return Object.values(classRecords?.[className] || {}).some((record) => record.teacherUsername !== actor.username);
+    });
+    if (hasOtherTeacherRecords) {
+      sendError(res, 403, "This class has another teacher's attendance. Ask the admin to delete it.");
+      return;
+    }
+  }
+
+  db.classes = db.classes.filter((item) => item !== className);
+  delete db.classMeta[className];
+  db.students = db.students.filter((student) => student.className !== className);
+  Object.keys(db.attendanceRecords).forEach((dateValue) => {
+    if (db.attendanceRecords[dateValue]?.[className]) {
+      delete db.attendanceRecords[dateValue][className];
+    }
+  });
+  pruneAttendanceContainers(db);
+
+  const fallbackClass = db.classes[0] || "";
+  const teachers = await getAllTeachers();
+  teachers
+    .filter((teacher) => !isAdmin(teacher) && teacher.assignedClass === className)
+    .forEach((teacher) => upsertTeacherOverride(db, teacher, { assignedClass: fallbackClass }));
+
+  await writeDb(db);
+  const updatedActor = await findTeacher(actor.username);
+  sendJson(res, 200, {
+    classes: db.classes,
+    students: db.students,
+    attendanceRecords: db.attendanceRecords,
+    teacher: publicTeacher(updatedActor),
+    teachers: (await getAllTeachers()).map(publicTeacher)
+  });
 }
 
 async function serveStatic(req, res, pathname) {
@@ -678,8 +1021,20 @@ async function router(req, res) {
       return;
     }
 
+    if (req.method === "DELETE" && pathname.startsWith("/api/classes/")) {
+      const className = pathname.replace("/api/classes/", "");
+      await handleDeleteClass(req, res, className, url.searchParams.get("username"));
+      return;
+    }
+
     if (req.method === "POST" && pathname === "/api/students") {
       await handleAddStudent(req, res);
+      return;
+    }
+
+    if (req.method === "DELETE" && pathname.startsWith("/api/students/")) {
+      const studentId = pathname.replace("/api/students/", "");
+      await handleDeleteStudent(req, res, studentId, url.searchParams.get("username"));
       return;
     }
 
@@ -690,6 +1045,12 @@ async function router(req, res) {
 
     if (req.method === "POST" && pathname === "/api/attendance") {
       await handleSaveAttendance(req, res);
+      return;
+    }
+
+    if (req.method === "DELETE" && pathname.startsWith("/api/attendance/")) {
+      const dateValue = pathname.replace("/api/attendance/", "");
+      await handleDeleteAttendance(req, res, dateValue, url.searchParams);
       return;
     }
 
