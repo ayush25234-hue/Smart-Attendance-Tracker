@@ -9,9 +9,11 @@ const AUTH_SECRET = process.env.AUTH_SECRET || "change-this-secret-before-public
 const ADMIN_USERNAME = normalizeUsername(process.env.ADMIN_USERNAME || "admin");
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "";
 const ADMIN_NAME = process.env.ADMIN_NAME || "School Admin";
+const DATABASE_URL = process.env.DATABASE_URL || "";
 const ROOT_DIR = __dirname;
-const DATA_DIR = path.join(ROOT_DIR, "data");
+const DATA_DIR = process.env.DATA_DIR ? path.resolve(process.env.DATA_DIR) : path.join(ROOT_DIR, "data");
 const DB_PATH = path.join(DATA_DIR, "db.json");
+const DB_ROW_ID = "main";
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET,POST,PATCH,DELETE,OPTIONS",
@@ -207,45 +209,118 @@ function verifyPassword(password, teacher) {
   return crypto.timingSafeEqual(Buffer.from(hash, "hex"), Buffer.from(teacher.passwordHash, "hex"));
 }
 
+let pgPool = null;
+
+function getInitialDb() {
+  return {
+    teachers: [],
+    classes: sampleClasses,
+    classMeta: {},
+    students,
+    attendanceRecords: {},
+    holidayRecords: {}
+  };
+}
+
+function normalizeDb(db) {
+  const source = db && typeof db === "object" ? db : {};
+  const dbStudents = (Array.isArray(source.students) ? source.students : students).map((student) => ({
+    ...student,
+    fatherName: String(student.fatherName || "").trim()
+  }));
+  const dbClasses = Array.isArray(source.classes)
+    ? source.classes
+    : [...new Set(dbStudents.map((student) => student.className))].sort();
+
+  return {
+    teachers: Array.isArray(source.teachers) ? source.teachers : [],
+    classes: dbClasses,
+    classMeta: source.classMeta || {},
+    students: dbStudents,
+    attendanceRecords: source.attendanceRecords || {},
+    holidayRecords: source.holidayRecords || {}
+  };
+}
+
+function getPgPool() {
+  if (!DATABASE_URL) return null;
+  if (!pgPool) {
+    let Pool;
+    try {
+      ({ Pool } = require("pg"));
+    } catch {
+      throw new Error("DATABASE_URL is set, but the pg package is not installed. Run npm install.");
+    }
+
+    pgPool = new Pool({
+      connectionString: DATABASE_URL,
+      ssl: process.env.DATABASE_SSL === "false" ? false : { rejectUnauthorized: false }
+    });
+  }
+  return pgPool;
+}
+
+async function ensurePostgresDb() {
+  const pool = getPgPool();
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS app_state (
+      id TEXT PRIMARY KEY,
+      data JSONB NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+
+  const existing = await pool.query("SELECT id FROM app_state WHERE id = $1", [DB_ROW_ID]);
+  if (!existing.rowCount) {
+    await pool.query(
+      "INSERT INTO app_state (id, data, updated_at) VALUES ($1, $2::jsonb, NOW())",
+      [DB_ROW_ID, JSON.stringify(getInitialDb())]
+    );
+  }
+}
+
 async function ensureDb() {
+  if (DATABASE_URL) {
+    await ensurePostgresDb();
+    return;
+  }
+
   await fs.mkdir(DATA_DIR, { recursive: true });
   try {
     await fs.access(DB_PATH);
   } catch {
-    await fs.writeFile(DB_PATH, JSON.stringify({
-      teachers: [],
-      classes: sampleClasses,
-      classMeta: {},
-      students,
-      attendanceRecords: {},
-      holidayRecords: {}
-    }, null, 2));
+    await fs.writeFile(DB_PATH, JSON.stringify(getInitialDb(), null, 2));
   }
 }
 
 async function readDb() {
   await ensureDb();
+
+  if (DATABASE_URL) {
+    const pool = getPgPool();
+    const result = await pool.query("SELECT data FROM app_state WHERE id = $1", [DB_ROW_ID]);
+    return normalizeDb(result.rows[0]?.data || getInitialDb());
+  }
+
   const content = await fs.readFile(DB_PATH, "utf8");
-  const db = JSON.parse(content || "{}");
-  const dbStudents = (Array.isArray(db.students) ? db.students : students).map((student) => ({
-    ...student,
-    fatherName: String(student.fatherName || "").trim()
-  }));
-  const dbClasses = Array.isArray(db.classes)
-    ? db.classes
-    : [...new Set(dbStudents.map((student) => student.className))].sort();
-  return {
-    teachers: Array.isArray(db.teachers) ? db.teachers : [],
-    classes: dbClasses,
-    classMeta: db.classMeta || {},
-    students: dbStudents,
-    attendanceRecords: db.attendanceRecords || {},
-    holidayRecords: db.holidayRecords || {}
-  };
+  return normalizeDb(JSON.parse(content || "{}"));
 }
 
 async function writeDb(db) {
-  await fs.writeFile(DB_PATH, JSON.stringify(db, null, 2));
+  const normalizedDb = normalizeDb(db);
+
+  if (DATABASE_URL) {
+    const pool = getPgPool();
+    await pool.query(`
+      INSERT INTO app_state (id, data, updated_at)
+      VALUES ($1, $2::jsonb, NOW())
+      ON CONFLICT (id)
+      DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()
+    `, [DB_ROW_ID, JSON.stringify(normalizedDb)]);
+    return;
+  }
+
+  await fs.writeFile(DB_PATH, JSON.stringify(normalizedDb, null, 2));
 }
 
 async function getAllTeachers() {
