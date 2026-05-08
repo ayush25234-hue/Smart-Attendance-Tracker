@@ -1088,10 +1088,6 @@
         border-radius: var(--radius);
       }
 
-      table {
-        min-width: 520px;
-      }
-
       th,
       td {
         padding: 11px 10px;
@@ -1117,6 +1113,36 @@
       .search-result-btn .badge {
         grid-column: 1 / -1;
         justify-self: start;
+      }
+
+      .attendance-percentage-table {
+        min-width: 0;
+        table-layout: fixed;
+      }
+
+      .attendance-percentage-table th,
+      .attendance-percentage-table td {
+        padding: 10px 7px;
+      }
+
+      .attendance-percentage-table th:first-child,
+      .attendance-percentage-table td:first-child {
+        width: 54px;
+      }
+
+      .attendance-percentage-table th:last-child,
+      .attendance-percentage-table td:last-child {
+        width: 88px;
+      }
+
+      .attendance-percentage-table .student-name {
+        font-size: 14px;
+      }
+
+      .attendance-percentage-table .badge {
+        min-width: 58px;
+        padding-left: 8px;
+        padding-right: 8px;
       }
     }
   </style>
@@ -3138,7 +3164,7 @@
         if (!entries.length) return `<div class="empty-state">${emptyText}</div>`;
         return `
           <div class="table-wrap">
-            <table>
+            <table class="attendance-percentage-table">
               <thead>
                 <tr>
                   <th>Roll No</th>
