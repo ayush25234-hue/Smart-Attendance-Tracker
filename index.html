@@ -939,6 +939,24 @@
       font-weight: 900;
     }
 
+    .message-image-wrap {
+      margin-top: 14px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface-soft);
+      padding: 10px;
+      overflow-x: auto;
+    }
+
+    .message-image-wrap canvas {
+      display: block;
+      width: 100%;
+      max-width: 960px;
+      height: auto;
+      border-radius: 6px;
+      background: #fff;
+    }
+
     .toast {
       position: fixed;
       right: 20px;
@@ -1390,8 +1408,13 @@
           </div>
           <div class="panel-body">
             <textarea id="whatsappMessage" readonly placeholder="Save attendance to generate the WhatsApp-ready message."></textarea>
+            <div class="message-image-wrap hidden" id="messageImageWrap">
+              <canvas id="whatsappImageCanvas" width="960" height="520"></canvas>
+            </div>
             <div class="section-actions">
               <button class="secondary-btn" id="copyMessage" type="button" disabled>Copy Message</button>
+              <button class="secondary-btn" id="copyImage" type="button" disabled>Copy Image</button>
+              <button class="primary-btn" id="downloadImage" type="button" disabled>Save Image</button>
             </div>
             <p class="message-status" id="copyStatus"></p>
           </div>
@@ -1756,7 +1779,11 @@
       deleteAttendance: document.getElementById("deleteAttendance"),
       saveNote: document.getElementById("saveNote"),
       whatsappMessage: document.getElementById("whatsappMessage"),
+      messageImageWrap: document.getElementById("messageImageWrap"),
+      whatsappImageCanvas: document.getElementById("whatsappImageCanvas"),
       copyMessage: document.getElementById("copyMessage"),
+      copyImage: document.getElementById("copyImage"),
+      downloadImage: document.getElementById("downloadImage"),
       copyStatus: document.getElementById("copyStatus"),
       holidayDate: document.getElementById("holidayDate"),
       holidayReason: document.getElementById("holidayReason"),
@@ -2710,8 +2737,7 @@
         const path = `/api/attendance/${encodeURIComponent(dateValue)}?username=${encodeURIComponent(currentTeacher.username)}&className=${encodeURIComponent(currentTeacher.assignedClass)}&subject=${encodeURIComponent(currentTeacher.subject)}`;
         const payload = await apiRequest(path, { method: "DELETE" });
         setAttendanceRecords(payload.attendanceRecords);
-        elements.whatsappMessage.value = "";
-        elements.copyMessage.disabled = true;
+        resetWhatsappOutputs();
         renderDashboard();
         renderMarkAttendance();
         renderDateReport();
@@ -2722,22 +2748,159 @@
       }
     }
 
+    function getAbsentReportRows(dateValue, absentStudents) {
+      const monthRange = getMonthRange(dateValue.slice(0, 7));
+      return absentStudents.map((student, index) => {
+        const currentMonth = getStudentAttendanceSummaryForRange(student.id, monthRange.start, monthRange.end);
+        const overall = getStudentAttendanceSummary(student.id);
+        return {
+          serial: index + 1,
+          rollNo: student.rollNo,
+          studentName: student.name,
+          fatherName: getFatherName(student),
+          monthPercentage: `${currentMonth.percentage}%`,
+          overallPercentage: `${overall.percentage}%`
+        };
+      });
+    }
+
+    function buildWhatsappTextTable(rows) {
+      if (!rows.length) return "No absent students.";
+
+      const headers = ["S.No.", "Roll No.", "Student Name", "Father's Name", "Month %", "Overall %"];
+      const values = rows.map((row) => [
+        row.serial,
+        row.rollNo,
+        row.studentName,
+        row.fatherName,
+        row.monthPercentage,
+        row.overallPercentage
+      ].map(String));
+      const widths = headers.map((header, index) => {
+        return Math.max(header.length, ...values.map((row) => row[index].length));
+      });
+      const formatRow = (row) => row.map((cell, index) => String(cell).padEnd(widths[index], " ")).join(" | ");
+      const separator = widths.map((width) => "-".repeat(width)).join("-+-");
+      return [
+        "```",
+        formatRow(headers),
+        separator,
+        ...values.map(formatRow),
+        "```"
+      ].join("\n");
+    }
+
+    function drawFittedText(ctx, text, x, y, maxWidth) {
+      const value = String(text || "-");
+      if (ctx.measureText(value).width <= maxWidth) {
+        ctx.fillText(value, x, y);
+        return;
+      }
+
+      let fitted = value;
+      while (fitted.length > 1 && ctx.measureText(`${fitted}...`).width > maxWidth) {
+        fitted = fitted.slice(0, -1);
+      }
+      ctx.fillText(`${fitted}...`, x, y);
+    }
+
+    function renderWhatsappImage(dateValue, rows) {
+      const canvas = elements.whatsappImageCanvas;
+      const ctx = canvas.getContext("2d");
+      const columns = [
+        { label: "S.No.", key: "serial", width: 72 },
+        { label: "Roll No.", key: "rollNo", width: 92 },
+        { label: "Student Name", key: "studentName", width: 235 },
+        { label: "Father's Name", key: "fatherName", width: 235 },
+        { label: "Month %", key: "monthPercentage", width: 130 },
+        { label: "Overall %", key: "overallPercentage", width: 135 }
+      ];
+      const margin = 34;
+      const tableWidth = columns.reduce((sum, column) => sum + column.width, 0);
+      const rowHeight = 52;
+      const tableTop = 154;
+      const height = rows.length ? tableTop + rowHeight * (rows.length + 1) + 38 : 300;
+
+      canvas.width = tableWidth + margin * 2;
+      canvas.height = height;
+      canvas.dataset.filename = `attendance-${dateValue}.png`;
+
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "#0f172a";
+      ctx.font = "700 30px Segoe UI, Arial, sans-serif";
+      ctx.fillText("Absent Students Report", margin, 48);
+      ctx.font = "600 17px Segoe UI, Arial, sans-serif";
+      ctx.fillStyle = "#475569";
+      ctx.fillText(`Date: ${formatShortDate(dateValue)}`, margin, 82);
+      ctx.fillText(`Class: ${currentTeacher.assignedClass}`, margin + 210, 82);
+      ctx.fillText(`Subject: ${currentTeacher.subject}`, margin + 390, 82);
+      ctx.fillText(`Teacher: ${currentTeacher.teacherName}`, margin, 112);
+
+      if (!rows.length) {
+        ctx.fillStyle = "#eff6ff";
+        ctx.fillRect(margin, tableTop, tableWidth, 78);
+        ctx.fillStyle = "#1d4ed8";
+        ctx.font = "700 22px Segoe UI, Arial, sans-serif";
+        ctx.fillText("No absent students.", margin + 24, tableTop + 48);
+        elements.messageImageWrap.classList.remove("hidden");
+        return;
+      }
+
+      let x = margin;
+      ctx.fillStyle = "#2563eb";
+      ctx.fillRect(margin, tableTop, tableWidth, rowHeight);
+      columns.forEach((column) => {
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "700 15px Segoe UI, Arial, sans-serif";
+        drawFittedText(ctx, column.label, x + 12, tableTop + 32, column.width - 24);
+        ctx.strokeStyle = "rgba(255,255,255,0.38)";
+        ctx.beginPath();
+        ctx.moveTo(x + column.width, tableTop);
+        ctx.lineTo(x + column.width, tableTop + rowHeight);
+        ctx.stroke();
+        x += column.width;
+      });
+
+      rows.forEach((row, rowIndex) => {
+        const y = tableTop + rowHeight * (rowIndex + 1);
+        ctx.fillStyle = rowIndex % 2 === 0 ? "#f8fafc" : "#ffffff";
+        ctx.fillRect(margin, y, tableWidth, rowHeight);
+        x = margin;
+        columns.forEach((column) => {
+          ctx.fillStyle = "#0f172a";
+          ctx.font = column.key.includes("Percentage") ? "700 16px Segoe UI, Arial, sans-serif" : "600 15px Segoe UI, Arial, sans-serif";
+          drawFittedText(ctx, row[column.key], x + 12, y + 32, column.width - 24);
+          ctx.strokeStyle = "#dbe3ef";
+          ctx.strokeRect(x, y, column.width, rowHeight);
+          x += column.width;
+        });
+      });
+
+      ctx.strokeStyle = "#cbd5e1";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(margin, tableTop, tableWidth, rowHeight * (rows.length + 1));
+      elements.messageImageWrap.classList.remove("hidden");
+    }
+
+    function resetWhatsappOutputs() {
+      elements.whatsappMessage.value = "";
+      elements.copyMessage.disabled = true;
+      elements.copyImage.disabled = true;
+      elements.downloadImage.disabled = true;
+      elements.messageImageWrap.classList.add("hidden");
+      elements.copyStatus.textContent = "";
+    }
+
     function generateWhatsAppMessage(dateValue, absentIds) {
       const absentStudents = absentIds
         .map((id) => findAssignedStudentById(id))
         .filter(Boolean)
         .sort((a, b) => a.rollNo - b.rollNo);
-      const monthRange = getMonthRange(dateValue.slice(0, 7));
+      const rows = getAbsentReportRows(dateValue, absentStudents);
 
       const absentLines = absentStudents.length
-        ? [
-          "Student Roll No. || Student Name || Father's Name || Current Month Attendance % || Overall Attendance %",
-          ...absentStudents.map((student) => {
-            const currentMonth = getStudentAttendanceSummaryForRange(student.id, monthRange.start, monthRange.end);
-            const overall = getStudentAttendanceSummary(student.id);
-            return `${student.rollNo} || ${student.name} || ${getFatherName(student)} || ${currentMonth.percentage}% || ${overall.percentage}%`;
-          })
-        ].join("\n")
+        ? buildWhatsappTextTable(rows)
         : "None";
 
       elements.whatsappMessage.value = [
@@ -2748,7 +2911,10 @@
         absentLines
       ].join("\n");
 
+      renderWhatsappImage(dateValue, rows);
       elements.copyMessage.disabled = false;
+      elements.copyImage.disabled = false;
+      elements.downloadImage.disabled = false;
       elements.copyStatus.textContent = "";
     }
 
@@ -2772,6 +2938,42 @@
       } catch (error) {
         elements.copyStatus.textContent = "Copy failed. Select the message and copy it manually.";
       }
+    }
+
+    function canvasToBlob(canvas) {
+      return new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+    }
+
+    async function copyWhatsappImage() {
+      if (elements.copyImage.disabled) {
+        showToast("Save attendance to generate an image.");
+        return;
+      }
+
+      try {
+        const blob = await canvasToBlob(elements.whatsappImageCanvas);
+        if (!blob || !navigator.clipboard || !window.ClipboardItem) {
+          throw new Error("Image copy is not supported in this browser.");
+        }
+        await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+        elements.copyStatus.textContent = "Image copied.";
+        showToast("Image copied.");
+      } catch (error) {
+        elements.copyStatus.textContent = "Image copy is not supported here. Use Save Image.";
+      }
+    }
+
+    function downloadWhatsappImage() {
+      if (elements.downloadImage.disabled) {
+        showToast("Save attendance to generate an image.");
+        return;
+      }
+
+      const link = document.createElement("a");
+      link.href = elements.whatsappImageCanvas.toDataURL("image/png");
+      link.download = elements.whatsappImageCanvas.dataset.filename || "attendance-report.png";
+      link.click();
+      elements.copyStatus.textContent = "Image ready.";
     }
 
     async function addHoliday() {
@@ -3487,9 +3689,7 @@
       elements.monthQuickFilter.value = "";
       activeDateReportFilter = "date";
       elements.holidayDate.value = elements.holidayDate.value || today;
-      elements.whatsappMessage.value = "";
-      elements.copyMessage.disabled = true;
-      elements.copyStatus.textContent = "";
+      resetWhatsappOutputs();
       elements.adminNavBtn.classList.toggle("hidden", !isAdminUser());
       renderTeacherScopeText();
       renderDashboard();
@@ -3521,6 +3721,8 @@
       elements.saveAttendance.addEventListener("click", saveAttendance);
       elements.deleteAttendance.addEventListener("click", deleteAttendanceRecord);
       elements.copyMessage.addEventListener("click", copyWhatsAppMessage);
+      elements.copyImage.addEventListener("click", copyWhatsappImage);
+      elements.downloadImage.addEventListener("click", downloadWhatsappImage);
       elements.addHoliday.addEventListener("click", addHoliday);
       elements.createClassBtn.addEventListener("click", createClass);
       elements.addStudentBtn.addEventListener("click", addStudentManually);
