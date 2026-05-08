@@ -334,21 +334,21 @@ async function writeDb(db) {
 async function getAllTeachers() {
   const db = await readDb();
   const merged = new Map(sampleTeachers.map((teacher) => [teacher.username, { ...teacher, role: "teacher" }]));
+  db.teachers.forEach((teacher) => {
+    if (ADMIN_PASSWORD && teacher.username === ADMIN_USERNAME) return;
+    const base = merged.get(teacher.username) || {};
+    merged.set(teacher.username, { role: "teacher", ...base, ...teacher });
+  });
   if (ADMIN_PASSWORD) {
-    const adminTeacher = {
+    merged.set(ADMIN_USERNAME, {
       username: ADMIN_USERNAME,
       password: ADMIN_PASSWORD,
       teacherName: ADMIN_NAME,
       subject: "Administration",
       assignedClass: db.classes[0] || "",
       role: "admin"
-    };
-    merged.set(adminTeacher.username, adminTeacher);
+    });
   }
-  db.teachers.forEach((teacher) => {
-    const base = merged.get(teacher.username) || {};
-    merged.set(teacher.username, { role: "teacher", ...base, ...teacher });
-  });
   return [...merged.values()];
 }
 
@@ -506,11 +506,19 @@ async function handleLogin(req, res) {
   let teacher = await findTeacher(username);
 
   if (!teacher) {
+    if (username === ADMIN_USERNAME) {
+      sendError(res, 404, "Admin account is not active. Check ADMIN_PASSWORD in Render Environment and redeploy.");
+      return;
+    }
     sendError(res, 404, "Account not found. Create it again or ask the admin to check the username.");
     return;
   }
 
   if (!verifyPassword(password, teacher)) {
+    if (username === ADMIN_USERNAME) {
+      sendError(res, 401, "Admin password does not match ADMIN_PASSWORD in Render. Use the exact saved environment value or update it and redeploy.");
+      return;
+    }
     sendError(res, 401, "Wrong password. Check spaces, capital letters, or ask admin to reset it.");
     return;
   }
