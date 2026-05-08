@@ -222,7 +222,10 @@ async function readDb() {
   await ensureDb();
   const content = await fs.readFile(DB_PATH, "utf8");
   const db = JSON.parse(content || "{}");
-  const dbStudents = Array.isArray(db.students) ? db.students : students;
+  const dbStudents = (Array.isArray(db.students) ? db.students : students).map((student) => ({
+    ...student,
+    fatherName: String(student.fatherName || "").trim()
+  }));
   const dbClasses = Array.isArray(db.classes)
     ? db.classes
     : [...new Set(dbStudents.map((student) => student.className))].sort();
@@ -658,7 +661,8 @@ function normalizeStudentInput(input, fallbackClassName) {
   const className = normalizeClassName(input.className || fallbackClassName);
   const rollNo = Number(input.rollNo);
   const name = String(input.name || "").trim();
-  return { className, rollNo, name };
+  const fatherName = String(input.fatherName || input.father || "").trim();
+  return { className, rollNo, name, fatherName };
 }
 
 async function handleAddStudent(req, res) {
@@ -696,6 +700,7 @@ async function handleAddStudent(req, res) {
     id: getNextStudentId(db.students),
     rollNo: studentInput.rollNo,
     name: studentInput.name,
+    fatherName: studentInput.fatherName,
     className: studentInput.className,
     createdBy: actor.username,
     createdAt: new Date().toISOString()
@@ -757,6 +762,7 @@ async function handleImportStudents(req, res) {
       id: nextId,
       rollNo: studentInput.rollNo,
       name: studentInput.name,
+      fatherName: studentInput.fatherName,
       className: studentInput.className,
       createdBy: actor.username,
       createdAt: new Date().toISOString()

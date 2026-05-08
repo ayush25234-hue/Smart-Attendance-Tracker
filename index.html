@@ -585,6 +585,10 @@
       grid-template-columns: minmax(150px, 0.8fr) minmax(120px, 0.6fr) minmax(220px, 1.2fr) auto;
     }
 
+    .controls-row.student-entry {
+      grid-template-columns: minmax(130px, 0.8fr) minmax(95px, 0.5fr) minmax(180px, 1fr) minmax(180px, 1fr) auto;
+    }
+
     .inline-check {
       display: inline-flex;
       align-items: center;
@@ -1020,6 +1024,7 @@
       .controls-row.two,
       .controls-row.holiday,
       .controls-row.four,
+      .controls-row.student-entry,
       .month-percentage-row,
       .report-grid {
         grid-template-columns: 1fr;
@@ -1143,6 +1148,41 @@
         min-width: 58px;
         padding-left: 8px;
         padding-right: 8px;
+      }
+
+      .mark-attendance-table {
+        min-width: 0;
+        table-layout: fixed;
+      }
+
+      .mark-attendance-table th,
+      .mark-attendance-table td {
+        padding: 10px 7px;
+      }
+
+      .mark-attendance-table th:first-child,
+      .mark-attendance-table td:first-child {
+        width: 48px;
+      }
+
+      .mark-attendance-table th:nth-child(3),
+      .mark-attendance-table td:nth-child(3) {
+        width: 90px;
+      }
+
+      .mark-attendance-table th:last-child,
+      .mark-attendance-table td:last-child {
+        width: 86px;
+      }
+
+      .mark-attendance-table .absent-toggle {
+        min-width: 0;
+        gap: 6px;
+        font-size: 12px;
+      }
+
+      .mark-attendance-table .badge {
+        min-width: 54px;
       }
     }
   </style>
@@ -1417,7 +1457,7 @@
             </div>
           </div>
           <div class="panel-body">
-            <div class="controls-row four">
+            <div class="controls-row student-entry">
               <div class="field">
                 <label for="manualStudentClass">Class</label>
                 <select id="manualStudentClass"></select>
@@ -1430,6 +1470,10 @@
                 <label for="manualStudentName">Student Name</label>
                 <input id="manualStudentName" type="text">
               </div>
+              <div class="field">
+                <label for="manualFatherName">Father's Name</label>
+                <input id="manualFatherName" type="text">
+              </div>
               <button class="primary-btn" id="addStudentBtn" type="button">Add Student</button>
             </div>
           </div>
@@ -1439,7 +1483,7 @@
           <div class="panel-header">
             <div>
               <h2 class="panel-title">Import Students From Sheet</h2>
-              <p class="panel-kicker">CSV, TSV, or XLSX with rollNo and name columns</p>
+              <p class="panel-kicker">CSV, TSV, or XLSX with rollNo, name, and fatherName columns</p>
             </div>
           </div>
           <div class="panel-body">
@@ -1727,6 +1771,7 @@
       manualStudentClass: document.getElementById("manualStudentClass"),
       manualRollNo: document.getElementById("manualRollNo"),
       manualStudentName: document.getElementById("manualStudentName"),
+      manualFatherName: document.getElementById("manualFatherName"),
       addStudentBtn: document.getElementById("addStudentBtn"),
       importStudentClass: document.getElementById("importStudentClass"),
       importSheetFile: document.getElementById("importSheetFile"),
@@ -1919,6 +1964,10 @@
 
     function findTeacher(username) {
       return getAllTeachers().find((teacher) => teacher.username === username);
+    }
+
+    function getFatherName(student) {
+      return String(student?.fatherName || "").trim() || "-";
     }
 
     function isAdminUser() {
@@ -2548,29 +2597,27 @@
           <td class="roll-cell">${student.rollNo}</td>
           <td>
             <div class="student-name">${escapeHtml(student.name)}</div>
-            <div class="muted">ID ${student.id}</div>
+            <div class="muted">Father: ${escapeHtml(getFatherName(student))}</div>
           </td>
-          <td>${escapeHtml(student.className)}</td>
-          <td><span class="badge neutral">${summary.percentage}%</span></td>
           <td>
             <label class="absent-toggle">
               <input type="checkbox" class="absent-checkbox" value="${student.id}" ${absentIds.has(student.id) ? "checked" : ""} ${status.blocked ? "disabled" : ""}>
               Absent
             </label>
           </td>
+          <td><span class="badge neutral">${summary.percentage}%</span></td>
         </tr>
       `).join("");
 
       elements.studentList.innerHTML = `
         <div class="table-wrap">
-          <table>
+          <table class="mark-attendance-table">
             <thead>
               <tr>
                 <th>Roll No</th>
                 <th>Student</th>
-                <th>Class</th>
+                <th>Mark Absent</th>
                 <th>Attendance %</th>
-                <th>Mark</th>
               </tr>
             </thead>
             <tbody>${rows}</tbody>
@@ -2680,9 +2727,17 @@
         .map((id) => findAssignedStudentById(id))
         .filter(Boolean)
         .sort((a, b) => a.rollNo - b.rollNo);
+      const monthRange = getMonthRange(dateValue.slice(0, 7));
 
       const absentLines = absentStudents.length
-        ? absentStudents.map((student, index) => `${index + 1}. ${student.rollNo} - ${student.name}`).join("\n")
+        ? [
+          "Student Roll No. || Student Name || Father's Name || Current Month Attendance % || Overall Attendance %",
+          ...absentStudents.map((student) => {
+            const currentMonth = getStudentAttendanceSummaryForRange(student.id, monthRange.start, monthRange.end);
+            const overall = getStudentAttendanceSummary(student.id);
+            return `${student.rollNo} || ${student.name} || ${getFatherName(student)} || ${currentMonth.percentage}% || ${overall.percentage}%`;
+          })
+        ].join("\n")
         : "None";
 
       elements.whatsappMessage.value = [
@@ -2880,6 +2935,7 @@
       const className = elements.manualStudentClass.value;
       const rollNo = Number(elements.manualRollNo.value);
       const name = elements.manualStudentName.value.trim();
+      const fatherName = elements.manualFatherName.value.trim();
 
       if (!className || !rollNo || !name) {
         setNotice(elements.classStudentNotice, "Select class, roll number, and student name.", "danger");
@@ -2893,13 +2949,15 @@
             teacherUsername: currentTeacher.username,
             className,
             rollNo,
-            name
+            name,
+            fatherName
           })
         });
         appData.students = payload.students || appData.students;
         appData.classes = payload.classes || appData.classes;
         elements.manualRollNo.value = "";
         elements.manualStudentName.value = "";
+        elements.manualFatherName.value = "";
         refreshAfterRosterChange(`${name} added to ${className}.`);
       } catch (error) {
         setNotice(elements.classStudentNotice, error.message || "Student could not be added.", "danger");
@@ -2953,11 +3011,13 @@
       const dataRows = hasHeader ? cleanRows.slice(1) : cleanRows;
       const rollIndex = hasHeader ? firstRow.findIndex((key) => key === "rollno" || key === "rollnumber" || key === "roll") : 0;
       const nameIndex = hasHeader ? firstRow.findIndex((key) => key === "name" || key === "studentname") : 1;
-      const classIndex = hasHeader ? firstRow.findIndex((key) => key === "classname" || key === "class") : 2;
+      const fatherIndex = hasHeader ? firstRow.findIndex((key) => key === "fathername" || key === "fathersname" || key === "father") : 2;
+      const classIndex = hasHeader ? firstRow.findIndex((key) => key === "classname" || key === "class") : 3;
 
       return dataRows.map((row) => ({
         rollNo: row[rollIndex],
         name: row[nameIndex],
+        fatherName: fatherIndex >= 0 ? row[fatherIndex] : "",
         className: classIndex >= 0 ? row[classIndex] : fallbackClassName
       })).filter((student) => student.rollNo && student.name);
     }
@@ -3095,6 +3155,7 @@
                 <th>Class</th>
                 <th>Roll No</th>
                 <th>Name</th>
+                <th>Father's Name</th>
                 <th>Student ID</th>
                 <th>Action</th>
               </tr>
@@ -3109,6 +3170,7 @@
                     <td><span class="badge neutral">${escapeHtml(student.className)}</span></td>
                     <td class="roll-cell">${student.rollNo}</td>
                     <td class="student-name">${escapeHtml(student.name)}</td>
+                    <td>${escapeHtml(getFatherName(student))}</td>
                     <td>${student.id}</td>
                     <td>${action}</td>
                   </tr>
