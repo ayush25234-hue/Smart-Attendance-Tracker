@@ -2880,8 +2880,10 @@
       const margin = 34;
       const tableWidth = columns.reduce((sum, column) => sum + column.width, 0);
       const rowHeight = 52;
-      const tableTop = 188;
-      const height = rows.length ? tableTop + rowHeight * (rows.length + 1) + 38 : 300;
+      const tableTop = 218;
+      const height = rows.length
+        ? tableTop + rowHeight * (rows.length + 1) + 38
+        : tableTop + 78 + 38;
 
       canvas.width = tableWidth + margin * 2;
       canvas.height = height;
@@ -2889,23 +2891,41 @@
 
       ctx.fillStyle = "#ffffff";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.fillStyle = "#0f172a";
+
+      const centerX = canvas.width / 2;
       ctx.textAlign = "center";
-      ctx.font = "700 23px Segoe UI, Arial, sans-serif";
+      ctx.fillStyle = "#0f172a";
+      ctx.font = "900 33px Segoe UI, Arial, sans-serif";
       let collegeName = getTeacherCollegeName();
       while (collegeName.length > 1 && ctx.measureText(`${collegeName}...`).width > tableWidth) {
         collegeName = collegeName.slice(0, -1);
       }
-      ctx.fillText(collegeName.length < getTeacherCollegeName().length ? `${collegeName}...` : collegeName, canvas.width / 2, 42);
+      ctx.fillText(collegeName.length < getTeacherCollegeName().length ? `${collegeName}...` : collegeName, centerX, 48);
+
+      ctx.font = "800 30px Segoe UI, Arial, sans-serif";
+      ctx.fillText("Absent Students Report", centerX, 92);
+
+      ctx.strokeStyle = "#2563eb";
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(centerX - 230, 112);
+      ctx.lineTo(centerX + 230, 112);
+      ctx.stroke();
+
+      ctx.strokeStyle = "#dbeafe";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(margin, 124);
+      ctx.lineTo(margin + tableWidth, 124);
+      ctx.stroke();
+
       ctx.textAlign = "left";
-      ctx.font = "700 30px Segoe UI, Arial, sans-serif";
-      ctx.fillText("Absent Students Report", margin, 80);
       ctx.font = "600 17px Segoe UI, Arial, sans-serif";
       ctx.fillStyle = "#475569";
-      ctx.fillText(`Date: ${formatShortDate(dateValue)}`, margin, 116);
-      ctx.fillText(`Class: ${currentTeacher.assignedClass}`, margin + 210, 116);
-      ctx.fillText(`Subject: ${currentTeacher.subject}`, margin + 390, 116);
-      ctx.fillText(`Teacher: ${currentTeacher.teacherName}`, margin, 146);
+      ctx.fillText(`Date: ${formatShortDate(dateValue)}`, margin, 154);
+      ctx.fillText(`Class: ${currentTeacher.assignedClass}`, margin + 210, 154);
+      ctx.fillText(`Subject: ${currentTeacher.subject}`, margin + 390, 154);
+      ctx.fillText(`Teacher: ${currentTeacher.teacherName}`, margin, 184);
 
       if (!rows.length) {
         ctx.fillStyle = "#eff6ff";
