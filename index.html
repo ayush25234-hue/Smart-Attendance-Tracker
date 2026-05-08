@@ -283,6 +283,46 @@
       grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
     }
 
+    .mobile-menu-btn,
+    .mobile-nav-backdrop {
+      display: none;
+    }
+
+    .mobile-menu-btn {
+      position: fixed;
+      top: 14px;
+      left: 14px;
+      z-index: 70;
+      width: 44px;
+      height: 44px;
+      border: 1px solid #bfcee3;
+      border-radius: var(--radius);
+      background: #fff;
+      box-shadow: 0 12px 28px rgba(15, 23, 42, 0.16);
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      flex-direction: column;
+    }
+
+    .mobile-menu-btn span {
+      display: block;
+      width: 20px;
+      height: 2px;
+      border-radius: 999px;
+      background: #0f172a;
+    }
+
+    .mobile-nav-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 50;
+      background: rgba(15, 23, 42, 0.36);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.18s ease;
+    }
+
     .sidebar {
       position: sticky;
       top: 0;
@@ -923,23 +963,40 @@
         grid-template-columns: 1fr;
       }
 
+      .mobile-menu-btn {
+        display: inline-flex;
+      }
+
+      .mobile-nav-backdrop {
+        display: block;
+      }
+
+      .app-shell.mobile-menu-open .mobile-nav-backdrop {
+        opacity: 1;
+        pointer-events: auto;
+      }
+
       .sidebar {
-        position: static;
-        height: auto;
-        grid-template-columns: 1fr;
-        grid-template-rows: auto;
-        border-right: 0;
-        border-bottom: 1px solid var(--line);
+        position: fixed;
+        top: 0;
+        left: 0;
+        z-index: 60;
+        width: min(320px, calc(100vw - 42px));
+        height: 100dvh;
+        overflow-y: auto;
+        transform: translateX(-105%);
+        transition: transform 0.2s ease;
+        border-right: 1px solid var(--line);
+        border-bottom: 0;
+        box-shadow: 18px 0 44px rgba(15, 23, 42, 0.18);
       }
 
-      .nav-list {
-        grid-template-columns: repeat(7, minmax(132px, 1fr));
-        overflow-x: auto;
-        padding-bottom: 4px;
+      .app-shell.mobile-menu-open .sidebar {
+        transform: translateX(0);
       }
 
-      .sidebar .danger-btn {
-        justify-self: start;
+      .main {
+        padding-top: 74px;
       }
     }
 
@@ -980,9 +1037,26 @@
 
       .auth-intro,
       .auth-card,
-      .main,
       .sidebar {
         padding: 16px;
+      }
+
+      .main {
+        padding: 74px 12px 18px;
+      }
+
+      .topbar h1 {
+        font-size: 32px;
+      }
+
+      .topbar p {
+        font-size: 16px;
+        line-height: 1.45;
+      }
+
+      .date-pill {
+        width: 100%;
+        justify-content: flex-start;
       }
 
       .stat-grid,
@@ -1008,6 +1082,41 @@
       .section-actions .save-note {
         width: 100%;
         text-align: center;
+      }
+
+      .table-wrap {
+        border-radius: var(--radius);
+      }
+
+      table {
+        min-width: 520px;
+      }
+
+      th,
+      td {
+        padding: 11px 10px;
+      }
+
+      .roll-cell {
+        width: 70px;
+      }
+
+      .student-name {
+        font-size: 15px;
+        line-height: 1.35;
+      }
+
+      .badge {
+        min-width: 68px;
+      }
+
+      .search-result-btn {
+        grid-template-columns: 64px minmax(0, 1fr);
+      }
+
+      .search-result-btn .badge {
+        grid-column: 1 / -1;
+        justify-self: start;
       }
     }
   </style>
@@ -1082,6 +1191,13 @@
   </section>
 
   <div class="app-shell hidden" id="appShell">
+    <button class="mobile-menu-btn" id="mobileMenuBtn" type="button" aria-label="Open navigation" aria-expanded="false">
+      <span></span>
+      <span></span>
+      <span></span>
+    </button>
+    <div class="mobile-nav-backdrop" id="mobileNavBackdrop"></div>
+
     <aside class="sidebar">
       <div class="sidebar-brand">
         <div class="brand-mark">SA</div>
@@ -1522,6 +1638,8 @@
     const elements = {
       loginView: document.getElementById("loginView"),
       appShell: document.getElementById("appShell"),
+      mobileMenuBtn: document.getElementById("mobileMenuBtn"),
+      mobileNavBackdrop: document.getElementById("mobileNavBackdrop"),
       loginForm: document.getElementById("loginForm"),
       registerForm: document.getElementById("registerForm"),
       username: document.getElementById("username"),
@@ -1911,6 +2029,7 @@
       elements.loginForm.classList.remove("hidden");
       elements.registerForm.classList.add("hidden");
       elements.adminNavBtn.classList.add("hidden");
+      closeMobileMenu();
       elements.loginForm.reset();
       elements.registerForm.reset();
       elements.loginError.textContent = "";
@@ -1931,6 +2050,24 @@
       elements.loginForm.classList.remove("hidden");
       elements.registerError.textContent = "";
       elements.username.focus();
+    }
+
+    function openMobileMenu() {
+      elements.appShell.classList.add("mobile-menu-open");
+      elements.mobileMenuBtn.setAttribute("aria-expanded", "true");
+    }
+
+    function closeMobileMenu() {
+      elements.appShell.classList.remove("mobile-menu-open");
+      elements.mobileMenuBtn.setAttribute("aria-expanded", "false");
+    }
+
+    function toggleMobileMenu() {
+      if (elements.appShell.classList.contains("mobile-menu-open")) {
+        closeMobileMenu();
+      } else {
+        openMobileMenu();
+      }
     }
 
     function showApp() {
@@ -3282,9 +3419,14 @@
       elements.showRegisterBtn.addEventListener("click", showRegister);
       elements.showLoginBtn.addEventListener("click", showLoginFormOnly);
       elements.logoutBtn.addEventListener("click", logout);
+      elements.mobileMenuBtn.addEventListener("click", toggleMobileMenu);
+      elements.mobileNavBackdrop.addEventListener("click", closeMobileMenu);
       elements.dashClassSelect.addEventListener("change", changeDashboardClass);
       elements.navButtons.forEach((button) => {
-        button.addEventListener("click", () => setActiveView(button.dataset.view));
+        button.addEventListener("click", () => {
+          setActiveView(button.dataset.view);
+          closeMobileMenu();
+        });
       });
       elements.markDate.addEventListener("change", renderMarkAttendance);
       elements.markSort.addEventListener("change", renderMarkAttendance);
@@ -3303,6 +3445,12 @@
       elements.monthQuickFilter.addEventListener("change", applyRecentMonthFilter);
       elements.studentSearch.addEventListener("input", renderStudentSearchResults);
       elements.resetTeacherPasswordBtn.addEventListener("click", resetTeacherPassword);
+      window.addEventListener("resize", () => {
+        if (window.innerWidth > 1020) closeMobileMenu();
+      });
+      window.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") closeMobileMenu();
+      });
     }
 
     async function init() {
