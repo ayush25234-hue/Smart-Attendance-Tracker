@@ -7,7 +7,7 @@ const PORT = Number(process.env.PORT || 3000);
 const HOST = process.env.HOST || "0.0.0.0";
 const AUTH_SECRET = process.env.AUTH_SECRET || "change-this-secret-before-public-deployment";
 const ADMIN_USERNAME = normalizeUsername(process.env.ADMIN_USERNAME || "admin");
-const ADMIN_PASSWORD = String(process.env.ADMIN_PASSWORD || "").trim();
+const ADMIN_PASSWORD = String(process.env.ADMIN_PASSWORD || "admin123").trim();
 const ADMIN_NAME = String(process.env.ADMIN_NAME || "School Admin").trim();
 const DATABASE_URL = process.env.DATABASE_URL || "";
 const ROOT_DIR = __dirname;
@@ -21,6 +21,16 @@ const CORS_HEADERS = {
 };
 
 const sampleTeachers = [
+  {
+    username: "admin",
+    password: "admin123",
+    teacherName: "School Admin",
+    name: "School Admin",
+    collegeName: "Smart Attendance Demo College",
+    subject: "Administration",
+    assignedClass: "10-A",
+    role: "admin"
+  },
   {
     username: "mathsir",
     password: "math123",
@@ -333,9 +343,10 @@ async function writeDb(db) {
 
 async function getAllTeachers() {
   const db = await readDb();
-  const merged = new Map(sampleTeachers.map((teacher) => [teacher.username, { ...teacher, role: "teacher" }]));
+  const merged = new Map(sampleTeachers.map((teacher) => [teacher.username, { ...teacher, role: teacher.role || "teacher" }]));
+  const hasReservedAdmin = Boolean(ADMIN_PASSWORD) || merged.get(ADMIN_USERNAME)?.role === "admin";
   db.teachers.forEach((teacher) => {
-    if (ADMIN_PASSWORD && teacher.username === ADMIN_USERNAME) return;
+    if (hasReservedAdmin && teacher.username === ADMIN_USERNAME) return;
     const base = merged.get(teacher.username) || {};
     merged.set(teacher.username, { role: "teacher", ...base, ...teacher });
   });
@@ -498,7 +509,7 @@ async function handleLogin(req, res) {
   const username = normalizeUsername(body.username);
   const password = String(body.password || "");
 
-  if (username === ADMIN_USERNAME && !ADMIN_PASSWORD) {
+  if (username === ADMIN_USERNAME && !ADMIN_PASSWORD && !sampleTeachers.some((teacher) => teacher.username === ADMIN_USERNAME && teacher.role === "admin")) {
     sendError(res, 503, "Admin login is not enabled. Set ADMIN_PASSWORD in Render Environment, save, and redeploy.");
     return;
   }

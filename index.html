@@ -1093,6 +1093,71 @@
       background: #fff;
     }
 
+    .branding-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+      align-items: stretch;
+    }
+
+    .branding-card {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: #f8fafc;
+      padding: 14px;
+      display: grid;
+      gap: 12px;
+    }
+
+    .branding-preview {
+      min-height: 160px;
+      border: 1px dashed #b8c7dc;
+      border-radius: var(--radius);
+      background: #ffffff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      color: #64748b;
+      font-weight: 900;
+      text-align: center;
+    }
+
+    .branding-preview img {
+      display: block;
+      max-width: 100%;
+      max-height: 150px;
+      object-fit: contain;
+    }
+
+    .logo {
+      width: 120px;
+      height: 120px;
+      object-fit: contain;
+    }
+
+    .branding-preview.background-preview {
+      min-height: 190px;
+      background-image: var(--report-bg-image);
+      background-size: cover;
+      background-position: center;
+      background-repeat: no-repeat;
+      position: relative;
+    }
+
+    .branding-preview.background-preview::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: rgba(255, 255, 255, 0.72);
+    }
+
+    .branding-preview.background-preview span,
+    .branding-preview.background-preview img {
+      position: relative;
+      z-index: 1;
+    }
+
     .toast {
       position: fixed;
       right: 20px;
@@ -1186,7 +1251,8 @@
       .controls-row.student-entry,
       .inline-edit-grid,
       .month-percentage-row,
-      .report-grid {
+      .report-grid,
+      .branding-grid {
         grid-template-columns: 1fr;
       }
 
@@ -1810,6 +1876,43 @@
         <section class="panel">
           <div class="panel-header">
             <div>
+              <h2 class="panel-title">Report Branding Settings</h2>
+              <p class="panel-kicker">Admin-only logo and background for absent-students report images</p>
+            </div>
+          </div>
+          <div class="panel-body">
+            <div class="branding-grid">
+              <div class="branding-card">
+                <div class="field">
+                  <label for="logoUpload">Upload College Logo</label>
+                  <input id="logoUpload" type="file" accept="image/*">
+                </div>
+                <div class="branding-preview" id="logoPreview">
+                  <span>Preview Logo</span>
+                </div>
+                <button class="danger-btn" id="removeLogoBtn" type="button">Remove Logo</button>
+              </div>
+              <div class="branding-card">
+                <div class="field">
+                  <label for="backgroundUpload">Upload College Background Image</label>
+                  <input id="backgroundUpload" type="file" accept="image/*">
+                </div>
+                <div class="branding-preview background-preview" id="backgroundPreview">
+                  <span>Preview Background</span>
+                </div>
+                <button class="danger-btn" id="removeBackgroundBtn" type="button">Remove Background</button>
+              </div>
+            </div>
+            <div class="section-actions">
+              <p class="save-note" id="brandingNotice"></p>
+              <button class="primary-btn" id="saveBrandingBtn" type="button">Save Branding</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-header">
+            <div>
               <h2 class="panel-title">Admin Accounts</h2>
               <p class="panel-kicker">View teacher usernames and manage passwords</p>
             </div>
@@ -1851,9 +1954,21 @@
   <script>
     const LOGIN_KEY = "loggedInTeacher";
     const TOKEN_KEY = "attendanceSessionToken";
+    const COLLEGE_LOGO_KEY = "collegeLogo";
+    const REPORT_BACKGROUND_KEY = "reportBackgroundImage";
     const API_BASE = window.location.protocol === "file:" ? "http://localhost:3000" : "";
 
     const teachers = [
+      {
+        username: "admin",
+        password: "admin123",
+        teacherName: "School Admin",
+        name: "School Admin",
+        collegeName: "Smart Attendance Demo College",
+        subject: "Administration",
+        assignedClass: "10-A",
+        role: "admin"
+      },
       {
         username: "mathsir",
         password: "math123",
@@ -2027,6 +2142,14 @@
       studentSearchResults: document.getElementById("studentSearchResults"),
       studentReport: document.getElementById("studentReport"),
       adminAccounts: document.getElementById("adminAccounts"),
+      logoUpload: document.getElementById("logoUpload"),
+      backgroundUpload: document.getElementById("backgroundUpload"),
+      logoPreview: document.getElementById("logoPreview"),
+      backgroundPreview: document.getElementById("backgroundPreview"),
+      saveBrandingBtn: document.getElementById("saveBrandingBtn"),
+      removeLogoBtn: document.getElementById("removeLogoBtn"),
+      removeBackgroundBtn: document.getElementById("removeBackgroundBtn"),
+      brandingNotice: document.getElementById("brandingNotice"),
       resetTeacherSelect: document.getElementById("resetTeacherSelect"),
       resetTeacherPassword: document.getElementById("resetTeacherPassword"),
       resetTeacherPasswordBtn: document.getElementById("resetTeacherPasswordBtn"),
@@ -2038,6 +2161,10 @@
     let activeDateReportFilter = "date";
     let editingStudentId = null;
     let deferredInstallPrompt = null;
+    let reportBranding = {
+      logo: "",
+      background: ""
+    };
     let appData = {
       teachers: [...teachers],
       demoTeachers: [...teachers],
@@ -2295,6 +2422,138 @@
     function setNotice(element, message, tone) {
       element.textContent = message || "";
       element.className = `notice${message ? " show" : ""}${tone ? ` ${tone}` : ""}`;
+    }
+
+    function setBrandingNotice(message, tone = "") {
+      if (!elements.brandingNotice) return;
+      elements.brandingNotice.textContent = message || "";
+      const colors = {
+        danger: "#991b1b",
+        success: "#166534",
+        warning: "#92400e"
+      };
+      elements.brandingNotice.style.color = colors[tone] || "#64748b";
+    }
+
+    function fileToBase64(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(new Error("Image could not be read."));
+        reader.readAsDataURL(file);
+      });
+    }
+
+    function applyReportBranding() {
+      const backgroundValue = reportBranding.background ? `url("${reportBranding.background}")` : "none";
+      document.documentElement.style.setProperty("--report-bg-image", backgroundValue);
+
+      if (elements.logoPreview) {
+        elements.logoPreview.innerHTML = reportBranding.logo
+          ? `<img class="logo" src="${reportBranding.logo}" alt="College logo preview">`
+          : `<span>Preview Logo</span>`;
+      }
+
+      if (elements.backgroundPreview) {
+        elements.backgroundPreview.innerHTML = reportBranding.background
+          ? `<span>Preview Background</span>`
+          : `<span>Preview Background</span>`;
+      }
+    }
+
+    function loadBrandingSettings() {
+      reportBranding = {
+        logo: localStorage.getItem(COLLEGE_LOGO_KEY) || "",
+        background: localStorage.getItem(REPORT_BACKGROUND_KEY) || ""
+      };
+      applyReportBranding();
+    }
+
+    async function refreshCurrentReportImage() {
+      const dateValue = elements.markDate?.value;
+      if (!dateValue || elements.messageImageWrap.classList.contains("hidden")) return;
+      const record = getTeacherRecord(dateValue);
+      if (!record) return;
+      await generateAbsentReportImage(dateValue, record.absent || []);
+    }
+
+    async function handleLogoUpload() {
+      if (!isAdminUser()) {
+        showToast("Admin login required.");
+        return;
+      }
+      const file = elements.logoUpload.files?.[0];
+      if (!file) return;
+      if (!file.type.startsWith("image/")) {
+        setBrandingNotice("Choose an image file for the logo.", "danger");
+        return;
+      }
+      reportBranding.logo = await fileToBase64(file);
+      applyReportBranding();
+      setBrandingNotice("Logo preview ready. Click Save Branding.", "warning");
+    }
+
+    async function handleBackgroundUpload() {
+      if (!isAdminUser()) {
+        showToast("Admin login required.");
+        return;
+      }
+      const file = elements.backgroundUpload.files?.[0];
+      if (!file) return;
+      if (!file.type.startsWith("image/")) {
+        setBrandingNotice("Choose an image file for the background.", "danger");
+        return;
+      }
+      reportBranding.background = await fileToBase64(file);
+      applyReportBranding();
+      setBrandingNotice("Background preview ready. Click Save Branding.", "warning");
+    }
+
+    async function saveBrandingSettings() {
+      if (!isAdminUser()) {
+        showToast("Admin login required.");
+        return;
+      }
+      try {
+        if (reportBranding.logo) localStorage.setItem(COLLEGE_LOGO_KEY, reportBranding.logo);
+        else localStorage.removeItem(COLLEGE_LOGO_KEY);
+
+        if (reportBranding.background) localStorage.setItem(REPORT_BACKGROUND_KEY, reportBranding.background);
+        else localStorage.removeItem(REPORT_BACKGROUND_KEY);
+
+        applyReportBranding();
+        await refreshCurrentReportImage();
+        setBrandingNotice("Branding saved for report images.", "success");
+        showToast("Report branding saved.");
+      } catch (error) {
+        setBrandingNotice("Image is too large for browser storage. Try a smaller/compressed image.", "danger");
+      }
+    }
+
+    async function removeLogo() {
+      if (!isAdminUser()) {
+        showToast("Admin login required.");
+        return;
+      }
+      reportBranding.logo = "";
+      localStorage.removeItem(COLLEGE_LOGO_KEY);
+      elements.logoUpload.value = "";
+      applyReportBranding();
+      await refreshCurrentReportImage();
+      setBrandingNotice("Logo removed.", "success");
+    }
+
+    async function removeBackground() {
+      if (!isAdminUser()) {
+        showToast("Admin login required.");
+        return;
+      }
+      reportBranding.background = "";
+      localStorage.removeItem(REPORT_BACKGROUND_KEY);
+      elements.backgroundUpload.value = "";
+      applyReportBranding();
+      await refreshCurrentReportImage();
+      setBrandingNotice("Background removed.", "success");
     }
 
     function renderDemoCredentials() {
@@ -2988,7 +3247,7 @@
         });
 
         setAttendanceRecords(payload.attendanceRecords);
-        generateAbsentReportImage(dateValue, absent);
+        await generateAbsentReportImage(dateValue, absent);
         renderDashboard();
         renderMarkAttendance();
         renderDateReport();
@@ -3090,9 +3349,74 @@
       return [collegeName];
     }
 
-    function renderAbsentReportImage(dateValue, rows) {
+    function loadImageFromDataUrl(src) {
+      return new Promise((resolve) => {
+        if (!src) {
+          resolve(null);
+          return;
+        }
+        const image = new Image();
+        image.onload = () => resolve(image);
+        image.onerror = () => resolve(null);
+        image.src = src;
+      });
+    }
+
+    async function loadReportBrandingImages() {
+      const [logoImage, backgroundImage] = await Promise.all([
+        loadImageFromDataUrl(reportBranding.logo),
+        loadImageFromDataUrl(reportBranding.background)
+      ]);
+      return { logoImage, backgroundImage };
+    }
+
+    function drawImageCover(ctx, image, x, y, width, height) {
+      if (!image) return;
+      const scale = Math.max(width / image.width, height / image.height);
+      const drawWidth = image.width * scale;
+      const drawHeight = image.height * scale;
+      const drawX = x + (width - drawWidth) / 2;
+      const drawY = y + (height - drawHeight) / 2;
+      ctx.drawImage(image, drawX, drawY, drawWidth, drawHeight);
+    }
+
+    function drawImageContain(ctx, image, x, y, width, height) {
+      if (!image) return;
+      const scale = Math.min(width / image.width, height / image.height);
+      const drawWidth = image.width * scale;
+      const drawHeight = image.height * scale;
+      const drawX = x + (width - drawWidth) / 2;
+      const drawY = y + (height - drawHeight) / 2;
+      ctx.drawImage(image, drawX, drawY, drawWidth, drawHeight);
+    }
+
+    function drawReportFooter(ctx, margin, tableWidth, footerTop) {
+      const signatureWidth = 230;
+      ctx.strokeStyle = "#94a3b8";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(margin, footerTop + 34);
+      ctx.lineTo(margin + signatureWidth, footerTop + 34);
+      ctx.moveTo(margin + tableWidth - signatureWidth, footerTop + 34);
+      ctx.lineTo(margin + tableWidth, footerTop + 34);
+      ctx.stroke();
+
+      ctx.fillStyle = "#334155";
+      ctx.font = "700 14px Segoe UI, Arial, sans-serif";
+      ctx.textAlign = "left";
+      ctx.fillText("Prepared By", margin, footerTop + 56);
+      drawFittedText(ctx, currentTeacher.teacherName, margin, footerTop + 76, signatureWidth);
+
+      ctx.textAlign = "right";
+      ctx.fillText("Signature", margin + tableWidth, footerTop + 56);
+      ctx.fillText("Authorized Signatory", margin + tableWidth, footerTop + 76);
+      ctx.textAlign = "left";
+    }
+
+    async function renderAbsentReportImage(dateValue, rows) {
       const canvas = elements.whatsappImageCanvas;
       const ctx = canvas.getContext("2d");
+      const { logoImage, backgroundImage } = await loadReportBrandingImages();
       const monthColumnLabel = `${formatMonthName(dateValue.slice(0, 7))} %`;
       const columns = [
         { label: "S.No.", key: "serial", width: 72 },
@@ -3106,10 +3430,10 @@
       const tableWidth = columns.reduce((sum, column) => sum + column.width, 0);
       const rowHeight = 52;
       const collegeLines = getReportCollegeNameLines();
-      const tableTop = collegeLines.length > 1 ? 250 : 230;
-      const height = rows.length
-        ? tableTop + rowHeight * (rows.length + 1) + 38
-        : tableTop + 78 + 38;
+      const tableTop = collegeLines.length > 1 ? 282 : 258;
+      const tableHeight = rows.length ? rowHeight * (rows.length + 1) : 78;
+      const footerTop = tableTop + tableHeight + 38;
+      const height = footerTop + 82;
 
       canvas.width = tableWidth + margin * 2;
       canvas.height = height;
@@ -3117,30 +3441,49 @@
 
       ctx.fillStyle = "#ffffff";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
+      if (backgroundImage) {
+        ctx.save();
+        ctx.globalAlpha = 0.13;
+        drawImageCover(ctx, backgroundImage, 0, 0, canvas.width, canvas.height);
+        ctx.restore();
+        ctx.fillStyle = "rgba(255, 255, 255, 0.78)";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
+
+      ctx.strokeStyle = "#0b3d78";
+      ctx.lineWidth = 4;
+      ctx.strokeRect(12, 12, canvas.width - 24, canvas.height - 24);
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(22, 22, canvas.width - 44, canvas.height - 44);
 
       const centerX = canvas.width / 2;
+      if (logoImage) {
+        drawImageContain(ctx, logoImage, margin, 36, 94, 94);
+      }
+
+      const headerTextWidth = logoImage ? tableWidth - 250 : tableWidth;
       ctx.textAlign = "center";
       ctx.fillStyle = "#0f172a";
       ctx.font = "900 34px Segoe UI, Arial, sans-serif";
-      drawCenteredFittedText(ctx, collegeLines[0], centerX, 46, tableWidth);
+      drawCenteredFittedText(ctx, collegeLines[0], centerX, 56, headerTextWidth);
 
-      let reportTitleY = 94;
-      let underlineY = 114;
-      let dividerY = 126;
-      let metaY = 156;
-      let teacherY = 186;
+      let reportTitleY = 116;
+      let underlineY = 138;
+      let dividerY = 154;
+      let metaY = 188;
+      let teacherY = 218;
       if (collegeLines.length > 1) {
         ctx.font = "800 23px Segoe UI, Arial, sans-serif";
-        drawCenteredFittedText(ctx, collegeLines[1], centerX, 76, tableWidth);
-        reportTitleY = 124;
-        underlineY = 146;
-        dividerY = 160;
-        metaY = 190;
-        teacherY = 220;
+        drawCenteredFittedText(ctx, collegeLines[1], centerX, 88, headerTextWidth);
+        reportTitleY = 146;
+        underlineY = 168;
+        dividerY = 184;
+        metaY = 218;
+        teacherY = 248;
       }
 
       ctx.font = "800 30px Segoe UI, Arial, sans-serif";
-      ctx.fillText("Absent Students Report", centerX, reportTitleY);
+      ctx.fillText("ABSENT STUDENTS REPORT", centerX, reportTitleY);
 
       ctx.strokeStyle = "#2563eb";
       ctx.lineWidth = 4;
@@ -3170,6 +3513,10 @@
         ctx.fillStyle = "#1d4ed8";
         ctx.font = "700 22px Segoe UI, Arial, sans-serif";
         ctx.fillText("No absent students.", margin + 24, tableTop + 48);
+        ctx.strokeStyle = "#cbd5e1";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(margin, tableTop, tableWidth, 78);
+        drawReportFooter(ctx, margin, tableWidth, footerTop);
         elements.messageImageWrap.classList.remove("hidden");
         return;
       }
@@ -3207,6 +3554,7 @@
       ctx.strokeStyle = "#cbd5e1";
       ctx.lineWidth = 2;
       ctx.strokeRect(margin, tableTop, tableWidth, rowHeight * (rows.length + 1));
+      drawReportFooter(ctx, margin, tableWidth, footerTop);
       elements.messageImageWrap.classList.remove("hidden");
     }
 
@@ -3218,14 +3566,14 @@
       elements.copyStatus.textContent = "";
     }
 
-    function generateAbsentReportImage(dateValue, absentIds) {
+    async function generateAbsentReportImage(dateValue, absentIds) {
       const absentStudents = absentIds
         .map((id) => findAssignedStudentById(id))
         .filter(Boolean)
         .sort((a, b) => a.rollNo - b.rollNo);
       const rows = getAbsentReportRows(dateValue, absentStudents);
 
-      renderAbsentReportImage(dateValue, rows);
+      await renderAbsentReportImage(dateValue, rows);
       elements.reportImageEmpty.classList.add("hidden");
       elements.copyImage.disabled = false;
       elements.downloadImage.disabled = false;
@@ -4015,8 +4363,10 @@
     async function renderAdminPanel() {
       if (!isAdminUser()) return;
 
+      loadBrandingSettings();
       elements.adminAccounts.innerHTML = `<div class="empty-state">Loading teacher accounts...</div>`;
       setNotice(elements.adminNotice, "", "");
+      setBrandingNotice("", "");
 
       try {
         const accounts = await loadAdminAccounts();
@@ -4108,6 +4458,11 @@
       elements.deleteAttendance.addEventListener("click", deleteAttendanceRecord);
       elements.copyImage.addEventListener("click", copyWhatsappImage);
       elements.downloadImage.addEventListener("click", downloadWhatsappImage);
+      elements.logoUpload.addEventListener("change", handleLogoUpload);
+      elements.backgroundUpload.addEventListener("change", handleBackgroundUpload);
+      elements.saveBrandingBtn.addEventListener("click", saveBrandingSettings);
+      elements.removeLogoBtn.addEventListener("click", removeLogo);
+      elements.removeBackgroundBtn.addEventListener("click", removeBackground);
       elements.addHoliday.addEventListener("click", addHoliday);
       elements.createClassBtn.addEventListener("click", createClass);
       elements.addStudentBtn.addEventListener("click", addStudentManually);
@@ -4146,6 +4501,7 @@
 
     async function init() {
       bindEvents();
+      loadBrandingSettings();
       try {
         await loadBootstrapData();
         renderDemoCredentials();
