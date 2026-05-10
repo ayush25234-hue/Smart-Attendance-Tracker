@@ -3336,6 +3336,26 @@
       ctx.textAlign = previousAlign;
     }
 
+    function drawCenteredScaledText(ctx, text, centerX, y, maxWidth, options = {}) {
+      const previousAlign = ctx.textAlign;
+      const previousFont = ctx.font;
+      const value = String(text || "-");
+      const weight = options.weight || "800";
+      const family = options.family || "Georgia, Times New Roman, serif";
+      let size = options.maxSize || 36;
+      const minSize = options.minSize || 24;
+
+      ctx.textAlign = "center";
+      ctx.font = `${weight} ${size}px ${family}`;
+      while (size > minSize && ctx.measureText(value).width > maxWidth) {
+        size -= 1;
+        ctx.font = `${weight} ${size}px ${family}`;
+      }
+      ctx.fillText(value, centerX, y);
+      ctx.textAlign = previousAlign;
+      ctx.font = previousFont;
+    }
+
     function getReportCollegeNameLines() {
       const collegeName = getTeacherCollegeName().replace(/\s+/g, " ").trim();
       const normalizedName = collegeName.replace(/[.]+$/, "");
@@ -3514,14 +3534,20 @@
       const headerTextWidth = logoImage ? tableWidth - 125 : tableWidth;
       ctx.textAlign = "center";
       ctx.fillStyle = "#06153f";
-      ctx.font = "900 46px Georgia, Times New Roman, serif";
-      drawCenteredFittedText(ctx, collegeLines[0].toUpperCase(), headerTextCenter, 88, headerTextWidth);
+      drawCenteredScaledText(ctx, collegeLines[0].toUpperCase(), headerTextCenter, 88, headerTextWidth, {
+        weight: "900",
+        maxSize: 46,
+        minSize: 34
+      });
 
       ctx.fillStyle = "#0b3d78";
-      ctx.font = "800 28px Georgia, Times New Roman, serif";
       const addressLine = (collegeLines[1] || "").replace(/[.]+$/, "").toUpperCase();
       if (addressLine) {
-        drawCenteredFittedText(ctx, addressLine, headerTextCenter, 130, headerTextWidth);
+        drawCenteredScaledText(ctx, addressLine, headerTextCenter, 130, headerTextWidth, {
+          weight: "800",
+          maxSize: 28,
+          minSize: 22
+        });
       }
 
       drawDecorativeDivider(ctx, centerX, 178);
