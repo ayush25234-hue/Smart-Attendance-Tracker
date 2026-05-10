@@ -1087,7 +1087,7 @@
     .message-image-wrap canvas {
       display: block;
       width: 100%;
-      max-width: 960px;
+      max-width: 1180px;
       height: auto;
       border-radius: 6px;
       background: #fff;
@@ -3390,27 +3390,79 @@
       ctx.drawImage(image, drawX, drawY, drawWidth, drawHeight);
     }
 
-    function drawReportFooter(ctx, margin, tableWidth, footerTop) {
-      const signatureWidth = 230;
-      ctx.strokeStyle = "#94a3b8";
-      ctx.lineWidth = 1;
+    function drawCertificateBorder(ctx, width, height) {
+      const borderColor = "#0b3d78";
+      ctx.strokeStyle = borderColor;
+      ctx.lineWidth = 3;
+      ctx.strokeRect(16, 16, width - 32, height - 32);
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(26, 26, width - 52, height - 52);
+
+      const corner = 34;
+      [[16, 16], [width - 16, 16], [16, height - 16], [width - 16, height - 16]].forEach(([x, y]) => {
+        const xDir = x < width / 2 ? 1 : -1;
+        const yDir = y < height / 2 ? 1 : -1;
+        ctx.beginPath();
+        ctx.moveTo(x, y + yDir * corner);
+        ctx.lineTo(x + xDir * corner, y + yDir * corner);
+        ctx.lineTo(x + xDir * corner, y);
+        ctx.stroke();
+      });
+    }
+
+    function drawDecorativeDivider(ctx, centerX, y) {
+      ctx.strokeStyle = "#0b3d78";
+      ctx.fillStyle = "#0b3d78";
+      ctx.lineWidth = 1.5;
       ctx.beginPath();
-      ctx.moveTo(margin, footerTop + 34);
-      ctx.lineTo(margin + signatureWidth, footerTop + 34);
-      ctx.moveTo(margin + tableWidth - signatureWidth, footerTop + 34);
-      ctx.lineTo(margin + tableWidth, footerTop + 34);
+      ctx.moveTo(centerX - 250, y);
+      ctx.lineTo(centerX - 50, y);
+      ctx.moveTo(centerX + 50, y);
+      ctx.lineTo(centerX + 250, y);
       ctx.stroke();
 
-      ctx.fillStyle = "#334155";
-      ctx.font = "700 14px Segoe UI, Arial, sans-serif";
-      ctx.textAlign = "left";
-      ctx.fillText("Prepared By", margin, footerTop + 56);
-      drawFittedText(ctx, currentTeacher.teacherName, margin, footerTop + 76, signatureWidth);
+      ctx.beginPath();
+      ctx.moveTo(centerX, y - 8);
+      ctx.lineTo(centerX + 8, y);
+      ctx.lineTo(centerX, y + 8);
+      ctx.lineTo(centerX - 8, y);
+      ctx.closePath();
+      ctx.fill();
 
-      ctx.textAlign = "right";
-      ctx.fillText("Signature", margin + tableWidth, footerTop + 56);
-      ctx.fillText("Authorized Signatory", margin + tableWidth, footerTop + 76);
+      [-24, 24].forEach((offset) => {
+        ctx.beginPath();
+        ctx.arc(centerX + offset, y, 6, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(centerX + offset - 18, y);
+        ctx.bezierCurveTo(centerX + offset - 10, y - 12, centerX + offset + 10, y - 12, centerX + offset + 18, y);
+        ctx.bezierCurveTo(centerX + offset + 10, y + 12, centerX + offset - 10, y + 12, centerX + offset - 18, y);
+        ctx.stroke();
+      });
+    }
+
+    function drawLabelValue(ctx, label, value, x, y, maxWidth, align = "left") {
+      const previousAlign = ctx.textAlign;
+      ctx.textAlign = align;
+      ctx.fillStyle = "#020617";
+      ctx.font = "700 21px Georgia, Times New Roman, serif";
+      const labelText = `${label}: `;
+      ctx.fillText(labelText, x, y);
+      const labelWidth = ctx.measureText(labelText).width;
+      ctx.font = "400 21px Georgia, Times New Roman, serif";
+      const valueX = align === "right" ? x + labelWidth : x + labelWidth;
+      drawFittedText(ctx, value, valueX, y, maxWidth - labelWidth);
+      ctx.textAlign = previousAlign;
+    }
+
+    function drawReportFooter(ctx, margin, tableWidth, footerTop) {
+      ctx.fillStyle = "#020617";
+      ctx.font = "400 19px Georgia, Times New Roman, serif";
       ctx.textAlign = "left";
+      ctx.fillText("Prepared By: ", margin, footerTop);
+      const labelWidth = ctx.measureText("Prepared By: ").width;
+      ctx.font = "700 19px Georgia, Times New Roman, serif";
+      drawFittedText(ctx, currentTeacher.teacherName, margin + labelWidth, footerTop, tableWidth * 0.48);
     }
 
     async function renderAbsentReportImage(dateValue, rows) {
@@ -3419,23 +3471,24 @@
       const { logoImage, backgroundImage } = await loadReportBrandingImages();
       const monthColumnLabel = `${formatMonthName(dateValue.slice(0, 7))} %`;
       const columns = [
-        { label: "S.No.", key: "serial", width: 72 },
-        { label: "Roll No.", key: "rollNo", width: 92 },
-        { label: "Student Name", key: "studentName", width: 235 },
-        { label: "Father's Name", key: "fatherName", width: 235 },
-        { label: monthColumnLabel, key: "monthPercentage", width: 130 },
-        { label: "Overall %", key: "overallPercentage", width: 135 }
+        { label: "S.No.", key: "serial", width: 88, align: "center" },
+        { label: "Roll No.", key: "rollNo", width: 112, align: "center" },
+        { label: "Student Name", key: "studentName", width: 280, align: "left" },
+        { label: "Father's Name", key: "fatherName", width: 280, align: "left" },
+        { label: monthColumnLabel, key: "monthPercentage", width: 140, align: "center" },
+        { label: "Overall %", key: "overallPercentage", width: 160, align: "center" }
       ];
-      const margin = 34;
+      const reportWidth = 1180;
+      const margin = 60;
       const tableWidth = columns.reduce((sum, column) => sum + column.width, 0);
-      const rowHeight = 52;
+      const rowHeight = 58;
       const collegeLines = getReportCollegeNameLines();
-      const tableTop = collegeLines.length > 1 ? 282 : 258;
-      const tableHeight = rows.length ? rowHeight * (rows.length + 1) : 78;
-      const footerTop = tableTop + tableHeight + 38;
-      const height = footerTop + 82;
+      const tableTop = 390;
+      const tableHeight = rows.length ? rowHeight * (rows.length + 1) : 90;
+      const footerTop = tableTop + tableHeight + 74;
+      const height = Math.max(830, footerTop + 58);
 
-      canvas.width = tableWidth + margin * 2;
+      canvas.width = reportWidth;
       canvas.height = height;
       canvas.dataset.filename = `attendance-${dateValue}.png`;
 
@@ -3443,92 +3496,75 @@
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       if (backgroundImage) {
         ctx.save();
-        ctx.globalAlpha = 0.13;
+        ctx.globalAlpha = 0.16;
         drawImageCover(ctx, backgroundImage, 0, 0, canvas.width, canvas.height);
         ctx.restore();
-        ctx.fillStyle = "rgba(255, 255, 255, 0.78)";
+        ctx.fillStyle = "rgba(255, 255, 255, 0.68)";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
       }
 
-      ctx.strokeStyle = "#0b3d78";
-      ctx.lineWidth = 4;
-      ctx.strokeRect(12, 12, canvas.width - 24, canvas.height - 24);
-      ctx.lineWidth = 1.5;
-      ctx.strokeRect(22, 22, canvas.width - 44, canvas.height - 44);
+      drawCertificateBorder(ctx, canvas.width, canvas.height);
 
       const centerX = canvas.width / 2;
       if (logoImage) {
-        drawImageContain(ctx, logoImage, margin, 36, 94, 94);
+        drawImageContain(ctx, logoImage, margin - 6, 42, 138, 138);
       }
 
-      const headerTextWidth = logoImage ? tableWidth - 250 : tableWidth;
+      const headerTextCenter = logoImage ? centerX + 42 : centerX;
+      const headerTextWidth = logoImage ? tableWidth - 125 : tableWidth;
       ctx.textAlign = "center";
-      ctx.fillStyle = "#0f172a";
-      ctx.font = "900 34px Segoe UI, Arial, sans-serif";
-      drawCenteredFittedText(ctx, collegeLines[0], centerX, 56, headerTextWidth);
+      ctx.fillStyle = "#06153f";
+      ctx.font = "900 46px Georgia, Times New Roman, serif";
+      drawCenteredFittedText(ctx, collegeLines[0].toUpperCase(), headerTextCenter, 88, headerTextWidth);
 
-      let reportTitleY = 116;
-      let underlineY = 138;
-      let dividerY = 154;
-      let metaY = 188;
-      let teacherY = 218;
-      if (collegeLines.length > 1) {
-        ctx.font = "800 23px Segoe UI, Arial, sans-serif";
-        drawCenteredFittedText(ctx, collegeLines[1], centerX, 88, headerTextWidth);
-        reportTitleY = 146;
-        underlineY = 168;
-        dividerY = 184;
-        metaY = 218;
-        teacherY = 248;
+      ctx.fillStyle = "#0b3d78";
+      ctx.font = "800 28px Georgia, Times New Roman, serif";
+      const addressLine = (collegeLines[1] || "").replace(/[.]+$/, "").toUpperCase();
+      if (addressLine) {
+        drawCenteredFittedText(ctx, addressLine, headerTextCenter, 130, headerTextWidth);
       }
 
-      ctx.font = "800 30px Segoe UI, Arial, sans-serif";
-      ctx.fillText("ABSENT STUDENTS REPORT", centerX, reportTitleY);
+      drawDecorativeDivider(ctx, centerX, 178);
 
-      ctx.strokeStyle = "#2563eb";
-      ctx.lineWidth = 4;
-      ctx.beginPath();
-      ctx.moveTo(centerX - 230, underlineY);
-      ctx.lineTo(centerX + 230, underlineY);
-      ctx.stroke();
-
-      ctx.strokeStyle = "#dbeafe";
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(margin, dividerY);
-      ctx.lineTo(margin + tableWidth, dividerY);
-      ctx.stroke();
+      ctx.fillStyle = "#06153f";
+      ctx.font = "900 42px Georgia, Times New Roman, serif";
+      drawCenteredFittedText(ctx, "ABSENT STUDENTS REPORT", centerX, 248, tableWidth);
 
       ctx.textAlign = "left";
-      ctx.font = "600 17px Segoe UI, Arial, sans-serif";
-      ctx.fillStyle = "#475569";
-      ctx.fillText(`Date: ${formatShortDate(dateValue)}`, margin, metaY);
-      ctx.fillText(`Class: ${currentTeacher.assignedClass}`, margin + 210, metaY);
-      ctx.fillText(`Subject: ${currentTeacher.subject}`, margin + 390, metaY);
-      ctx.fillText(`Teacher: ${currentTeacher.teacherName}`, margin, teacherY);
+      drawLabelValue(ctx, "Date", formatShortDate(dateValue), margin, 315, 250);
+      drawLabelValue(ctx, "Class", currentTeacher.assignedClass, margin + 460, 315, 220);
+      drawLabelValue(ctx, "Subject", currentTeacher.subject, margin + 760, 315, 260);
+      drawLabelValue(ctx, "Teacher", currentTeacher.teacherName, margin, 362, 430);
 
       if (!rows.length) {
-        ctx.fillStyle = "#eff6ff";
-        ctx.fillRect(margin, tableTop, tableWidth, 78);
-        ctx.fillStyle = "#1d4ed8";
-        ctx.font = "700 22px Segoe UI, Arial, sans-serif";
-        ctx.fillText("No absent students.", margin + 24, tableTop + 48);
-        ctx.strokeStyle = "#cbd5e1";
-        ctx.lineWidth = 2;
-        ctx.strokeRect(margin, tableTop, tableWidth, 78);
+        ctx.fillStyle = "rgba(255, 255, 255, 0.72)";
+        ctx.fillRect(margin, tableTop, tableWidth, 90);
+        ctx.fillStyle = "#06153f";
+        ctx.font = "700 24px Georgia, Times New Roman, serif";
+        ctx.fillText("No absent students.", margin + 28, tableTop + 55);
+        ctx.strokeStyle = "rgba(15, 23, 42, 0.34)";
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(margin, tableTop, tableWidth, 90);
         drawReportFooter(ctx, margin, tableWidth, footerTop);
         elements.messageImageWrap.classList.remove("hidden");
         return;
       }
 
       let x = margin;
-      ctx.fillStyle = "#2563eb";
+      const headerGradient = ctx.createLinearGradient(margin, tableTop, margin, tableTop + rowHeight);
+      headerGradient.addColorStop(0, "#074a86");
+      headerGradient.addColorStop(1, "#002f5f");
+      ctx.fillStyle = headerGradient;
       ctx.fillRect(margin, tableTop, tableWidth, rowHeight);
       columns.forEach((column) => {
         ctx.fillStyle = "#ffffff";
-        ctx.font = "700 15px Segoe UI, Arial, sans-serif";
-        drawFittedText(ctx, column.label, x + 12, tableTop + 32, column.width - 24);
-        ctx.strokeStyle = "rgba(255,255,255,0.38)";
+        ctx.font = "700 21px Georgia, Times New Roman, serif";
+        if (column.align === "center") {
+          drawCenteredFittedText(ctx, column.label, x + column.width / 2, tableTop + 36, column.width - 20);
+        } else {
+          drawFittedText(ctx, column.label, x + 26, tableTop + 36, column.width - 36);
+        }
+        ctx.strokeStyle = "rgba(255,255,255,0.46)";
         ctx.beginPath();
         ctx.moveTo(x + column.width, tableTop);
         ctx.lineTo(x + column.width, tableTop + rowHeight);
@@ -3538,21 +3574,26 @@
 
       rows.forEach((row, rowIndex) => {
         const y = tableTop + rowHeight * (rowIndex + 1);
-        ctx.fillStyle = rowIndex % 2 === 0 ? "#f8fafc" : "#ffffff";
+        ctx.fillStyle = rowIndex % 2 === 0 ? "rgba(255, 255, 255, 0.74)" : "rgba(255, 255, 255, 0.64)";
         ctx.fillRect(margin, y, tableWidth, rowHeight);
         x = margin;
         columns.forEach((column) => {
-          ctx.fillStyle = "#0f172a";
-          ctx.font = column.key.includes("Percentage") ? "700 16px Segoe UI, Arial, sans-serif" : "600 15px Segoe UI, Arial, sans-serif";
-          drawFittedText(ctx, row[column.key], x + 12, y + 32, column.width - 24);
-          ctx.strokeStyle = "#dbe3ef";
+          ctx.fillStyle = "#020617";
+          ctx.font = column.key.includes("Percentage") ? "700 20px Georgia, Times New Roman, serif" : "400 20px Georgia, Times New Roman, serif";
+          if (column.align === "center") {
+            drawCenteredFittedText(ctx, row[column.key], x + column.width / 2, y + 36, column.width - 20);
+          } else {
+            drawFittedText(ctx, row[column.key], x + 26, y + 36, column.width - 36);
+          }
+          ctx.strokeStyle = "rgba(15, 23, 42, 0.28)";
+          ctx.lineWidth = 1;
           ctx.strokeRect(x, y, column.width, rowHeight);
           x += column.width;
         });
       });
 
-      ctx.strokeStyle = "#cbd5e1";
-      ctx.lineWidth = 2;
+      ctx.strokeStyle = "rgba(15, 23, 42, 0.38)";
+      ctx.lineWidth = 1.6;
       ctx.strokeRect(margin, tableTop, tableWidth, rowHeight * (rows.length + 1));
       drawReportFooter(ctx, margin, tableWidth, footerTop);
       elements.messageImageWrap.classList.remove("hidden");
